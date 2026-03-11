@@ -1,5 +1,7 @@
 """Flujo OAuth 2.0 Microsoft Entra ID: login y callback."""
+import logging
 from fastapi import APIRouter, Depends, Query, Response, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from datetime import datetime
 
@@ -19,17 +21,26 @@ from backend.services.jwt_session import create_session_token
 from backend.config import settings
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/login")
 async def login(
     state: str | None = Query(None),
-    response: Response = None,
+    request: Request = None,
 ):
     """Redirige al usuario a Microsoft para iniciar sesión."""
-    url = get_auth_url(state=state)
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url=url, status_code=302)
+    if not (settings.AZURE_AD_CLIENT_ID and settings.AZURE_AD_TENANT_ID and settings.AZURE_AD_CLIENT_SECRET):
+        logger.warning("Login: faltan variables Azure AD (CLIENT_ID, TENANT_ID o CLIENT_SECRET)")
+        base = str(request.base_url).rstrip("/") if request else ""
+        return RedirectResponse(url=f"{base}/?error=auth_misconfigured", status_code=302)
+    try:
+        url = get_auth_url(state=state)
+        return RedirectResponse(url=url, status_code=302)
+    except Exception as e:
+        logger.exception("Login: error al generar URL de Microsoft")
+        base = str(request.base_url).rstrip("/") if request else ""
+        return RedirectResponse(url=f"{base}/?error=login_failed", status_code=302)
 
 
 @router.get("/callback")
@@ -41,7 +52,6 @@ async def callback(
     response: Response = None,
 ):
     """Intercambia el código por token, crea/actualiza usuario, registra log y setea cookie."""
-    from fastapi.responses import RedirectResponse
     base = str(request.base_url).rstrip("/")
     frontend_base = base
     # Redirect final al frontend (raíz o / si está detrás de proxy)
