@@ -1,0 +1,18 @@
+# PostgreSQL local para testear la app en desarrollo.
+# Uso: docker-compose up -d
+# DATABASE_URL en .env: postgresql+asyncpg://labeldiff:labeldiff@localhost:5432/labeldiff
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: labeldiff
+      POSTGRES_PASSWORD: labeldiff
+      POSTGRES_DB: labeldiff
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

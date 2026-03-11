@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e4e4e7;
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #d4d4d8;
+  }
+}
+
+.markdown-report {
+  @apply space-y-6;
+}
+.markdown-report h3 {
+  @apply text-xl font-black text-zinc-900 mt-8 mb-4 first:mt-0 flex items-center gap-2;
+}
+.markdown-report h3::before {
+  content: '';
+  @apply w-1 h-5 bg-emerald-500 rounded-full inline-block;
+}
+.markdown-report p {
+  @apply text-zinc-700 leading-relaxed mb-4 text-lg;
+}
+.markdown-report ul {
+  @apply space-y-3 my-4 list-none;
+}
+.markdown-report li {
+  @apply text-zinc-700 pl-6 relative text-lg;
+}
+.markdown-report li::before {
+  content: '→';
+  @apply absolute left-0 text-emerald-500 font-black;
+}
+.markdown-report strong {
+  @apply text-emerald-700 font-bold bg-emerald-50 px-1 rounded;
+}

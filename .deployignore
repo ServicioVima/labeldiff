@@ -1,0 +1,42 @@
+# ============================================================
+# Archivos que NO subir a Azure App Service (despliegue)
+# ============================================================
+# Usar esta lista al empaquetar (zip o script) para producción.
+
+# ----- Secretos y config local (en App Service usar Variables de aplicación) -----
+.env
+.env.local
+.env.*.local
+
+# ----- Frontend: dependencias y build intermedio (solo subir frontend/dist) -----
+frontend/node_modules/
+frontend/npm-debug.log*
+frontend/.vite/
+
+# ----- Python -----
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+*.egg
+
+# ----- IDE y sistema -----
+.idea/
+.vscode/
+.cursor/
+.DS_Store
+Thumbs.db
+*.log
+
+# ----- Opcional: documentación y control de versiones -----
+# .git/
+# README.md
+# README-MIGRACION.md
+# .env.example
