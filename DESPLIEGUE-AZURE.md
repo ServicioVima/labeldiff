@@ -103,7 +103,7 @@ Aquí es **donde debes meter la API key de Gemini** y el resto de la configuraci
 | `AZURE_STORAGE_CONTAINER` | `etiquetas` | Nombre del contenedor que creaste. |
 | **`GEMINI_API_KEY`** | **Tu API key de Gemini** | **Aquí es donde se configura la API key de Gemini.** La app la lee como variable de entorno. |
 | `GEMINI_MODEL` | `gemini-2.0-flash` | Modelo que usa el backend (y que expone al frontend si usas `/api/config`). |
-| `GEMINI_API_KEY_EXPOSE` | `false` | En producción déjalo en `false`. Si lo pones en `true`, el backend puede devolver la clave al frontend vía `GET /api/config` (solo si lo tienes implementado y lo necesitas; normalmente no). |
+| `GEMINI_API_KEY_EXPOSE` | `true` | Debe ser `true` para que el análisis funcione: el frontend obtiene la clave vía `GET /api/config` y llama a la API de Gemini desde el navegador. Sin esto, "Ejecutar Análisis" fallará. |
 
 ### Si usas login con Microsoft (Entra ID)
 

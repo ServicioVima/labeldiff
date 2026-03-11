@@ -152,7 +152,12 @@ export default function App() {
       setResult(analysis);
     } catch (err) {
       console.error(err);
-      setError('Error al analizar los archivos. Por favor, intenta de nuevo.');
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('GEMINI_API_KEY') || msg.includes('no configurada') || msg.includes('apiKey')) {
+        setError('Falta la API key de Gemini. En Azure App Service configure GEMINI_API_KEY y GEMINI_API_KEY_EXPOSE=true.');
+      } else {
+        setError('Error al analizar los archivos. Por favor, intenta de nuevo.');
+      }
     } finally {
       setIsAnalyzing(false);
     }
