@@ -1,4 +1,5 @@
 """Conexión y sesión PostgreSQL con SQLAlchemy async."""
+from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 
@@ -9,10 +10,28 @@ url = settings.DATABASE_URL
 if url.startswith("postgresql://"):
     url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+# asyncpg no acepta sslmode en connect(); usa ssl=True. Quitar sslmode de la URL y pasar ssl por connect_args.
+parsed = urlparse(url)
+query = parse_qs(parsed.query, keep_blank_values=True)
+sslmode = query.pop("sslmode", None)
+ssl_param = query.pop("ssl", None)
+new_query = urlencode([(k, v[0] if len(v) == 1 else v) for k, v in query.items()], doseq=True)
+url = urlunparse(parsed._replace(query=new_query))
+
+need_ssl = False
+if sslmode:
+    need_ssl = sslmode[0].lower() in ("require", "true", "1", "yes") if isinstance(sslmode, list) else True
+if not need_ssl and ssl_param:
+    need_ssl = ssl_param[0].lower() in ("true", "1", "yes") if isinstance(ssl_param, list) else True
+if not need_ssl and "postgres.database.azure.com" in url:
+    need_ssl = True
+connect_args = {"ssl": True} if need_ssl else {}
+
 engine = create_async_engine(
     url,
     echo=settings.ENV == "development",
     pool_pre_ping=True,
+    connect_args=connect_args,
 )
 AsyncSessionLocal = async_sessionmaker(
     engine,
