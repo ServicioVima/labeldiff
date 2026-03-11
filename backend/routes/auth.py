@@ -76,56 +76,75 @@ async def callback(
         return RedirectResponse(url=f"{redirect_url}?error=no_code", status_code=302)
 
     redirect_uri = f"{base}/api/auth/callback"
-    token = get_token_from_code(code, redirect_uri=redirect_uri)
+    try:
+        token = get_token_from_code(code, redirect_uri=redirect_uri)
+    except Exception as e:
+        logger.exception("Callback: error al intercambiar código por token")
+        return RedirectResponse(url=f"{redirect_url}?error=token_failed", status_code=302)
     if not token:
         return RedirectResponse(url=f"{redirect_url}?error=token_failed", status_code=302)
 
-    info = user_info_from_token(token)
+    try:
+        info = user_info_from_token(token)
+    except Exception:
+        logger.exception("Callback: error al obtener info del token")
+        return RedirectResponse(url=f"{redirect_url}?error=no_email", status_code=302)
     if not info.get("email"):
         return RedirectResponse(url=f"{redirect_url}?error=no_email", status_code=302)
 
-    group_ids = get_groups_from_graph(token["access_token"])
+    try:
+        group_ids = get_groups_from_graph(token["access_token"])
+    except Exception:
+        logger.exception("Callback: error al obtener grupos de Graph")
+        group_ids = []
     if not user_is_in_allowed_groups(group_ids):
         return RedirectResponse(url=f"{redirect_url}?error=no_access", status_code=302)
     role = role_from_groups(group_ids)
 
-    async with AsyncSessionLocal() as db:
-        existing = await db.execute(
-            select(User).where(
-                (User.email == info["email"]) | (User.azure_oid == info.get("oid"))
+    try:
+        async with AsyncSessionLocal() as db:
+            existing = await db.execute(
+                select(User).where(
+                    (User.email == info["email"]) | (User.azure_oid == info.get("oid"))
+                )
             )
-        )
-        user = existing.scalar_one_or_none()
-        if user:
-            user.name = info["name"]
-            user.last_login = datetime.utcnow()
-            user.role = role
-            if info.get("oid"):
-                user.azure_oid = info["oid"]
-        else:
-            user = User(
-                email=info["email"],
-                name=info["name"],
-                role=role,
-                azure_oid=info.get("oid"),
-                last_login=datetime.utcnow(),
+            user = existing.scalar_one_or_none()
+            if user:
+                user.name = info["name"]
+                user.last_login = datetime.utcnow()
+                user.role = role
+                if info.get("oid"):
+                    user.azure_oid = info["oid"]
+            else:
+                user = User(
+                    email=info["email"],
+                    name=info["name"],
+                    role=role,
+                    azure_oid=info.get("oid"),
+                    last_login=datetime.utcnow(),
+                )
+                db.add(user)
+            await db.flush()
+            await db.refresh(user)
+
+            log = UserLog(
+                user_id=user.id,
+                action=UserLogAction.login,
+                details=f"Login from Entra ID; role={role.value}",
+                ip_address=request.client.host if request.client else None,
             )
-            db.add(user)
-        await db.flush()
-        await db.refresh(user)
+            db.add(log)
+            await db.commit()
+    except Exception:
+        logger.exception("Callback: error de base de datos")
+        return RedirectResponse(url=f"{redirect_url}?error=callback_failed", status_code=302)
 
-        log = UserLog(
-            user_id=user.id,
-            action=UserLogAction.login,
-            details=f"Login from Entra ID; role={role.value}",
-            ip_address=request.client.host if request.client else None,
-        )
-        db.add(log)
-        await db.commit()
-        user_id = user.id
+    try:
+        session_jwt = create_session_token(user.id, user.email, user.role)
+    except Exception:
+        logger.exception("Callback: error al crear sesión JWT")
+        return RedirectResponse(url=f"{redirect_url}?error=callback_failed", status_code=302)
 
-    session_jwt = create_session_token(user.id, user.email, user.role)
-    # Cookie HttpOnly, SameSite para Azure (cross-site = None)
     response = RedirectResponse(url=redirect_url, status_code=302)
     response.set_cookie(
         key=settings.SESSION_COOKIE_NAME,
