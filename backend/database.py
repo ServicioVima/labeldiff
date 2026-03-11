@@ -1,9 +1,12 @@
 """Conexión y sesión PostgreSQL con SQLAlchemy async."""
+import logging
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 
 from backend.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Asegurar que la URL use driver async
 url = settings.DATABASE_URL
@@ -26,6 +29,10 @@ if not need_ssl and ssl_param:
 if not need_ssl and "postgres.database.azure.com" in url:
     need_ssl = True
 connect_args = {"ssl": True} if need_ssl else {}
+
+# Log del host (sin contraseña) para depurar gaierror en Azure
+_host = parsed.hostname or "(vacío)"
+logger.info("Database host: %s (si falla gaierror, revisa DATABASE_URL en App Service)", _host)
 
 engine = create_async_engine(
     url,
