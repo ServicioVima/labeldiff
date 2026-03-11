@@ -186,8 +186,8 @@ export default function App() {
               </div>
               {!isSidebarCollapsed && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="whitespace-nowrap">
-                  <h1 className="font-black text-xl tracking-tight text-zinc-900 leading-none">LabelDiff</h1>
-                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-[0.2em] mt-1">Intelligence Engine</p>
+                  <h1 className="font-black text-xl tracking-tight text-zinc-900 leading-none">Vima Etiquetas</h1>
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-[0.2em] mt-1">Análisis de etiquetas con IA</p>
                 </motion.div>
               )}
             </div>

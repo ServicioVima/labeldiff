@@ -38,8 +38,8 @@ else:
     def _root():
         return HTMLResponse(
             status_code=200,
-            content="""<!DOCTYPE html><html><head><meta charset="utf-8"><title>LabelDiff</title></head><body style="font-family:sans-serif;padding:2rem;">
-            <h1>LabelDiff</h1>
+            content="""<!DOCTYPE html><html><head><meta charset="utf-8"><title>Vima Etiquetas</title></head><body style="font-family:sans-serif;padding:2rem;">
+            <h1>Vima Etiquetas</h1>
             <p>El frontend no está desplegado en este entorno (falta <code>frontend/dist</code>).</p>
             <p>Asegúrate de que el workflow de GitHub Actions construye el frontend y despliega el repo completo.</p>
             <p><a href="/api/health">Comprobar API</a></p>

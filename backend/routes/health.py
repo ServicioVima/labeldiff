@@ -7,7 +7,7 @@ router = APIRouter()
 
 @router.get("/health")
 async def health():
-    return {"status": "ok", "service": "labeldiff-api"}
+    return {"status": "ok", "service": "vima-etiquetas-api"}
 
 
 @router.get("/config")

@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="LabelDiff API",
+        title="Vima Etiquetas API",
         description="Comparación Visual de Etiquetas con IA",
         version="1.0.0",
         lifespan=lifespan,
