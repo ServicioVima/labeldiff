@@ -50,6 +50,9 @@ async def login(
     try:
         url = get_auth_url(state=state, redirect_uri=redirect_uri)
         return RedirectResponse(url=url, status_code=302)
+    except ValueError as e:
+        logger.warning("Login: %s", e)
+        return RedirectResponse(url=f"{base}/?error=auth_misconfigured", status_code=302)
     except Exception:
         logger.exception("Login: error al generar URL de Microsoft")
         return RedirectResponse(url=f"{base}/?error=login_failed", status_code=302)

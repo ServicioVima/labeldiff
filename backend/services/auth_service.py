@@ -8,17 +8,29 @@ from backend.config import settings
 from backend.models.user import User, Role
 
 
-# Scopes para obtener token y leer grupos
-SCOPES = ["User.Read", "openid"]
-# Para que los grupos vengan en el token hay que configurar "optional claims" en el App Registration (id_token o access_token con groups)
-# Alternativa: llamar a Microsoft Graph para obtener membership
+# Scopes para obtener token y leer grupos. No incluir "openid" ni "profile": MSAL los reserva.
+SCOPES = ["User.Read", "email"]
 GRAPH_GROUPS_URL = "https://graph.microsoft.com/v1.0/me/memberOf"
+
+
+def _ensure_azure_config() -> None:
+    """Comprueba que Azure AD esté configurado; si no, lanza ValueError (evita fallo opaco de MSAL)."""
+    if not (settings.AZURE_AD_CLIENT_ID and settings.AZURE_AD_TENANT_ID):
+        raise ValueError(
+            "Azure no configurado: configura AZURE_AD_CLIENT_ID (o AZURE_CLIENT_ID) y "
+            "AZURE_AD_TENANT_ID (o AZURE_TENANT_ID) en la aplicación."
+        )
+    if not settings.AZURE_AD_CLIENT_SECRET:
+        raise ValueError(
+            "Azure no configurado: configura AZURE_AD_CLIENT_SECRET (o AZURE_CLIENT_SECRET)."
+        )
 
 
 def get_auth_url(state: Optional[str] = None, redirect_uri: Optional[str] = None) -> str:
     """Genera la URL de autorización de Microsoft (Authorization Code Flow).
     redirect_uri: si se pasa (p. ej. desde request), se usa; si no, settings.AZURE_AD_REDIRECT_URI.
     """
+    _ensure_azure_config()
     uri = redirect_uri or settings.AZURE_AD_REDIRECT_URI
     client = msal.ConfidentialClientApplication(
         settings.AZURE_AD_CLIENT_ID,
@@ -29,12 +41,14 @@ def get_auth_url(state: Optional[str] = None, redirect_uri: Optional[str] = None
         scopes=SCOPES,
         redirect_uri=uri,
         state=state,
+        prompt="select_account",
     )
     return auth_url
 
 
 def get_token_from_code(code: str, redirect_uri: Optional[str] = None) -> Optional[dict]:
     """Intercambia el código por tokens. redirect_uri debe ser idéntico al usado en login."""
+    _ensure_azure_config()
     uri = redirect_uri or settings.AZURE_AD_REDIRECT_URI
     client = msal.ConfidentialClientApplication(
         settings.AZURE_AD_CLIENT_ID,

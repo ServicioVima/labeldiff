@@ -49,6 +49,22 @@ export default function App() {
   const [selectedRegion2, setSelectedRegion2] = useState<[number, number, number, number] | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isFocusMode2, setIsFocusMode2] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const err = params?.get('error');
+    const reason = params?.get('reason') || '';
+    const messages: Record<string, string> = {
+      auth_misconfigured: 'Configuración de inicio de sesión incorrecta. Revisa AZURE_AD_CLIENT_ID, AZURE_AD_TENANT_ID y AZURE_AD_CLIENT_SECRET en la aplicación.',
+      no_code: 'No se recibió código de Microsoft. Intenta iniciar sesión de nuevo.',
+      token_failed: 'Error al intercambiar el código por token. Intenta de nuevo.',
+      no_email: 'No se pudo obtener el correo del usuario.',
+      no_access: 'No tienes acceso: tu usuario no está en ningún grupo permitido.',
+      login_failed: reason ? `Error de inicio de sesión: ${reason}` : 'Error al iniciar sesión con Microsoft. Intenta de nuevo.',
+    };
+    setLoginError(err ? (messages[err] || err) : null);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('labeldiff_categories', JSON.stringify(labels));
@@ -59,6 +75,15 @@ export default function App() {
       setGeminiConfig(cfg.geminiApiKey, cfg.geminiModel);
     }).catch(() => {});
   }, []);
+
+  // Login antes de entrar: si no hay sesión, redirigir a Microsoft (salvo si hay error en la URL para poder verlo)
+  useEffect(() => {
+    if (authLoading || user) return;
+    const hasError = typeof window !== 'undefined' && window.location.search.includes('error=');
+    if (!hasError && loginUrl) {
+      window.location.href = loginUrl;
+    }
+  }, [authLoading, user, loginUrl]);
 
   const onDrop = useCallback(async (acceptedFiles: File[], side: 'left' | 'right') => {
     const file = acceptedFiles[0];
@@ -249,6 +274,13 @@ export default function App() {
 
       <main className="flex-1 p-8 lg:p-12 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-12">
+          {loginError && !user && (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 text-sm flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <span>{loginError}</span>
+              <a href={loginUrl} className="ml-auto px-3 py-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 font-medium text-xs">Reintentar</a>
+            </div>
+          )}
           <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
