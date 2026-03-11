@@ -15,8 +15,11 @@ SCOPES = ["User.Read", "openid"]
 GRAPH_GROUPS_URL = "https://graph.microsoft.com/v1.0/me/memberOf"
 
 
-def get_auth_url(state: Optional[str] = None) -> str:
-    """Genera la URL de autorización de Microsoft (Authorization Code Flow)."""
+def get_auth_url(state: Optional[str] = None, redirect_uri: Optional[str] = None) -> str:
+    """Genera la URL de autorización de Microsoft (Authorization Code Flow).
+    redirect_uri: si se pasa (p. ej. desde request), se usa; si no, settings.AZURE_AD_REDIRECT_URI.
+    """
+    uri = redirect_uri or settings.AZURE_AD_REDIRECT_URI
     client = msal.ConfidentialClientApplication(
         settings.AZURE_AD_CLIENT_ID,
         authority=f"https://login.microsoftonline.com/{settings.AZURE_AD_TENANT_ID}",
@@ -24,14 +27,15 @@ def get_auth_url(state: Optional[str] = None) -> str:
     )
     auth_url = client.get_authorization_request_url(
         scopes=SCOPES,
-        redirect_uri=settings.AZURE_AD_REDIRECT_URI,
+        redirect_uri=uri,
         state=state,
     )
     return auth_url
 
 
-def get_token_from_code(code: str) -> Optional[dict]:
-    """Intercambia el código por tokens."""
+def get_token_from_code(code: str, redirect_uri: Optional[str] = None) -> Optional[dict]:
+    """Intercambia el código por tokens. redirect_uri debe ser idéntico al usado en login."""
+    uri = redirect_uri or settings.AZURE_AD_REDIRECT_URI
     client = msal.ConfidentialClientApplication(
         settings.AZURE_AD_CLIENT_ID,
         authority=f"https://login.microsoftonline.com/{settings.AZURE_AD_TENANT_ID}",
@@ -40,7 +44,7 @@ def get_token_from_code(code: str) -> Optional[dict]:
     result = client.acquire_token_by_authorization_code(
         code,
         scopes=SCOPES,
-        redirect_uri=settings.AZURE_AD_REDIRECT_URI,
+        redirect_uri=uri,
     )
     return result if result.get("access_token") else None
 

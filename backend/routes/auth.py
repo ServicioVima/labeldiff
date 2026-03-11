@@ -1,5 +1,6 @@
 """Flujo OAuth 2.0 Microsoft Entra ID: login y callback."""
 import logging
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, Query, Response, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -24,22 +25,33 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _base_url_from_request(request: Request) -> str:
+    """URL base pública: usa X-Forwarded-Proto y Host si está detrás de proxy (Azure App Service)."""
+    if not request:
+        return ""
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "https"
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    if not host:
+        return str(request.base_url).rstrip("/")
+    return f"{proto}://{host}".rstrip("/")
+
+
 @router.get("/login")
 async def login(
     state: str | None = Query(None),
     request: Request = None,
 ):
-    """Redirige al usuario a Microsoft para iniciar sesión."""
+    """Redirige al usuario a Microsoft para iniciar sesión (302). redirect_uri se construye desde la request."""
+    base = _base_url_from_request(request)
     if not (settings.AZURE_AD_CLIENT_ID and settings.AZURE_AD_TENANT_ID and settings.AZURE_AD_CLIENT_SECRET):
         logger.warning("Login: faltan variables Azure AD (CLIENT_ID, TENANT_ID o CLIENT_SECRET)")
-        base = str(request.base_url).rstrip("/") if request else ""
         return RedirectResponse(url=f"{base}/?error=auth_misconfigured", status_code=302)
+    redirect_uri = f"{base}/api/auth/callback"
     try:
-        url = get_auth_url(state=state)
+        url = get_auth_url(state=state, redirect_uri=redirect_uri)
         return RedirectResponse(url=url, status_code=302)
-    except Exception as e:
+    except Exception:
         logger.exception("Login: error al generar URL de Microsoft")
-        base = str(request.base_url).rstrip("/") if request else ""
         return RedirectResponse(url=f"{base}/?error=login_failed", status_code=302)
 
 
@@ -51,18 +63,20 @@ async def callback(
     request: Request = None,
     response: Response = None,
 ):
-    """Intercambia el código por token, crea/actualiza usuario, registra log y setea cookie."""
-    base = str(request.base_url).rstrip("/")
-    frontend_base = base
-    # Redirect final al frontend (raíz o / si está detrás de proxy)
-    redirect_url = f"{frontend_base}/"
+    """Intercambia el código por token, crea/actualiza usuario, registra log y setea cookie.
+    redirect_uri debe ser idéntico al usado en /login (misma URL pública).
+    """
+    base = _base_url_from_request(request)
+    redirect_url = f"{base}/"
+    # Microsoft devolvió error en el callback (ej. access_denied, consent_required)
     if error:
-        redirect_url = f"{frontend_base}/?error=login_failed"
-        return RedirectResponse(url=redirect_url, status_code=302)
+        reason = quote(error or "", safe="")
+        return RedirectResponse(url=f"{redirect_url}?error=login_failed&reason={reason}", status_code=302)
     if not code:
         return RedirectResponse(url=f"{redirect_url}?error=no_code", status_code=302)
 
-    token = get_token_from_code(code)
+    redirect_uri = f"{base}/api/auth/callback"
+    token = get_token_from_code(code, redirect_uri=redirect_uri)
     if not token:
         return RedirectResponse(url=f"{redirect_url}?error=token_failed", status_code=302)
 
