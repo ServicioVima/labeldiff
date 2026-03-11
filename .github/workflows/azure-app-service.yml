@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: labeldiff-app   # Cambia por el nombre de tu App Service
+  AZURE_WEBAPP_NAME: labeldiff-app-gtc6g6g8b2cfhxax
   NODE_VERSION: '20'
   PYTHON_VERSION: '3.11'
 
