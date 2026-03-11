@@ -13,6 +13,7 @@ from backend.services.auth_service import (
     get_groups_from_graph,
     role_from_groups,
     user_info_from_token,
+    user_is_in_allowed_groups,
 )
 from backend.services.jwt_session import create_session_token
 from backend.config import settings
@@ -60,6 +61,8 @@ async def callback(
         return RedirectResponse(url=f"{redirect_url}?error=no_email", status_code=302)
 
     group_ids = get_groups_from_graph(token["access_token"])
+    if not user_is_in_allowed_groups(group_ids):
+        return RedirectResponse(url=f"{redirect_url}?error=no_access", status_code=302)
     role = role_from_groups(group_ids)
 
     async with AsyncSessionLocal() as db:

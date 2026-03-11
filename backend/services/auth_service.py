@@ -62,6 +62,18 @@ def get_groups_from_graph(access_token: str) -> list[str]:
     return group_ids
 
 
+def user_is_in_allowed_groups(group_ids: list[str]) -> bool:
+    """True si el usuario pertenece al menos a uno de los grupos configurados (admin, user o viewer)."""
+    allowed = (
+        settings.group_ids_admin
+        + settings.group_ids_user
+        + settings.group_ids_viewer
+    )
+    if not allowed:
+        return True  # Sin grupos configurados: permitir (comportamiento legacy)
+    return any(g in allowed for g in group_ids)
+
+
 def role_from_groups(group_ids: list[str]) -> Role:
     """Asigna un rol por prioridad: admin > user > viewer según pertenencia a grupos."""
     if any(g in settings.group_ids_admin for g in group_ids):
