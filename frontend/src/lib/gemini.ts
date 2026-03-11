@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import type { ComparisonResult } from "../types";
 
 let cachedApiKey: string | null = null;
-let cachedModel: string = "gemini-2.0-flash";
+let cachedModel: string = "gemini-1.5-flash";
 
 export function setGeminiConfig(apiKey: string | undefined, model?: string) {
   if (apiKey != null) cachedApiKey = apiKey;

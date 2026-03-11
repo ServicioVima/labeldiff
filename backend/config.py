@@ -46,7 +46,7 @@ class Settings:
     # Gemini (config para el frontend; el frontend llama a Gemini con @google/genai)
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_API_KEY_EXPOSE: bool = os.getenv("GEMINI_API_KEY_EXPOSE", "false").lower() == "true"
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
     
     @property
     def group_ids_admin(self) -> List[str]:
