@@ -20,10 +20,10 @@ class Settings:
         "postgresql+asyncpg://user:pass@localhost:5432/labeldiff"
     )
     
-    # Azure AD (Microsoft Entra ID). Acepta también AZURE_CLIENT_ID / AZURE_TENANT_ID (como la otra app).
-    AZURE_AD_CLIENT_ID: str = os.getenv("AZURE_AD_CLIENT_ID") or os.getenv("AZURE_CLIENT_ID", "")
-    AZURE_AD_CLIENT_SECRET: str = os.getenv("AZURE_AD_CLIENT_SECRET") or os.getenv("AZURE_CLIENT_SECRET", "")
-    AZURE_AD_TENANT_ID: str = os.getenv("AZURE_AD_TENANT_ID") or os.getenv("AZURE_TENANT_ID", "")
+    # Azure AD (Microsoft Entra ID)
+    AZURE_AD_CLIENT_ID: str = os.getenv("AZURE_AD_CLIENT_ID", "")
+    AZURE_AD_CLIENT_SECRET: str = os.getenv("AZURE_AD_CLIENT_SECRET", "")
+    AZURE_AD_TENANT_ID: str = os.getenv("AZURE_AD_TENANT_ID", "")
     AZURE_AD_REDIRECT_URI: str = os.getenv("AZURE_AD_REDIRECT_URI", "http://localhost:8000/api/auth/callback")
     # Grupos -> rol (prioridad: admin > user > viewer). IDs de grupo separados por coma.
     AZURE_AD_GROUP_ADMIN: str = os.getenv("AZURE_AD_GROUP_ADMIN", "")   # IDs separados por coma
