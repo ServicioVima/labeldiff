@@ -8,10 +8,8 @@ from backend.config import settings
 from backend.models.user import User, Role
 
 
-# Scopes para obtener token y leer grupos
-SCOPES = ["User.Read", "openid"]
-# Para que los grupos vengan en el token hay que configurar "optional claims" en el App Registration (id_token o access_token con groups)
-# Alternativa: llamar a Microsoft Graph para obtener membership
+# Scopes para obtener token y leer grupos. No incluir openid/profile: MSAL los reserva.
+SCOPES = ["User.Read", "email"]
 GRAPH_GROUPS_URL = "https://graph.microsoft.com/v1.0/me/memberOf"
 
 
