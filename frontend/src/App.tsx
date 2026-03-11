@@ -2,12 +2,12 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Upload, Search, AlertCircle, CheckCircle2, Layers, ArrowRightLeft, Loader2, FileText, Sparkles, Zap, Download, History, Info, ChevronLeft, ChevronRight, Menu, X, Crosshair, Target, Trash2, LogIn, User,
+  Upload, Search, AlertCircle, CheckCircle2, Layers, ArrowRightLeft, Loader2, FileText, Sparkles, Zap, Download, History, Info, ChevronLeft, ChevronRight, Menu, X, Crosshair, Target, Trash2, LogIn, User, Plus, Minus, Pencil, AlertTriangle,
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-import type { FileData, LabelDefinition, ComparisonResult } from './types';
+import type { FileData, LabelDefinition, ComparisonResult, CategorizedChangeType } from './types';
 import { setGeminiConfig, analyzeDifferences } from './lib/gemini';
 import { getConfig } from './lib/api';
 import { useAuth } from './contexts/AuthContext';
@@ -313,7 +313,7 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    <FilePreview file={file1} label="Versión de Referencia" selectedRegion={selectedRegion} differences={result?.visualDifferences} />
+                    <FilePreview file={file1} label="Versión de Referencia" selectedRegion={selectedRegion} />
                     {file1 && (
                       <button onClick={(e) => { e.stopPropagation(); setFile1(null); setResult(null); setSelectedRegion(null); setIsFocusMode(false); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
                         <X className="w-5 h-5" />
@@ -346,7 +346,12 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    <FilePreview file={file2} label="Nueva Versión" selectedRegion={selectedRegion2} />
+                    <FilePreview file={file2} label="Nueva Versión" selectedRegion={selectedRegion2} differences={result?.visualDifferences} />
+                    {file2 && (
+                      <div className="absolute top-4 left-4 z-20 px-3 py-1.5 bg-zinc-800 text-white text-[10px] font-bold rounded-lg shadow-lg tracking-wider">
+                        VERSIÓN PARA FÁBRICA
+                      </div>
+                    )}
                     {file2 && (
                       <button onClick={(e) => { e.stopPropagation(); setFile2(null); setResult(null); setSelectedRegion2(null); setIsFocusMode2(false); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
                         <X className="w-5 h-5" />
@@ -410,7 +415,7 @@ export default function App() {
                           <div className="w-1 h-4 bg-emerald-500 rounded-full" />
                           <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Mapa de Calor de Diferencias</span>
                         </div>
-                        <FilePreview file={file1} label="Diferencias Marcadas en Referencia" differences={result.visualDifferences} />
+                        <FilePreview file={file2} label="Diferencias marcadas en versión para fábrica" differences={result.visualDifferences} />
                       </div>
                     </div>
                   </div>
@@ -425,6 +430,33 @@ export default function App() {
                       </button>
                     </div>
                     <div className="bg-white rounded-[2.5rem] border border-zinc-200 p-10 shadow-2xl shadow-zinc-200/40 relative overflow-hidden group min-h-[500px] flex flex-col">
+                      {result.categorizedChanges && result.categorizedChanges.length > 0 && (
+                        <div className="mb-6 space-y-3">
+                          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Cambios por categoría</p>
+                          <div className="flex flex-wrap gap-2">
+                            {(['added', 'removed', 'modified', 'absent'] as CategorizedChangeType[]).map((t) => {
+                              const items = result.categorizedChanges!.filter((c) => c.type === t);
+                              if (items.length === 0) return null;
+                              const config = { added: { bg: 'bg-emerald-100', text: 'text-emerald-800', icon: Plus }, removed: { bg: 'bg-red-100', text: 'text-red-800', icon: Minus }, modified: { bg: 'bg-amber-100', text: 'text-amber-800', icon: Pencil }, absent: { bg: 'bg-violet-100', text: 'text-violet-800', icon: AlertTriangle } }[t];
+                              const Icon = config.icon;
+                              const labels = { added: 'Nuevos', removed: 'Eliminados', modified: 'Modificados', absent: 'Ausentes' };
+                              return (
+                                <div key={t} className={cn('rounded-xl border p-3 min-w-[140px]', config.bg, 'border-transparent')}>
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    <Icon className={cn('w-4 h-4', config.text)} />
+                                    <span className={cn('text-xs font-bold uppercase tracking-wider', config.text)}>{labels[t]}</span>
+                                  </div>
+                                  <ul className="space-y-1">
+                                    {items.map((c, i) => (
+                                      <li key={i} className={cn('text-xs leading-snug', config.text)}>{c.label}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                       <div className="relative flex-1 prose prose-zinc max-w-none markdown-report">
                         <ReactMarkdown>{result.textualDifferences}</ReactMarkdown>
                       </div>

@@ -4,12 +4,20 @@ export interface LabelDefinition {
   prompt: string;
 }
 
+export type CategorizedChangeType = 'added' | 'removed' | 'modified' | 'absent';
+
+export interface CategorizedChange {
+  type: CategorizedChangeType;
+  label: string;
+}
+
 export interface ComparisonResult {
   textualDifferences: string;
   visualDifferences: {
     box_2d: [number, number, number, number];
     label: string;
   }[];
+  categorizedChanges?: CategorizedChange[];
 }
 
 export interface FileData {
