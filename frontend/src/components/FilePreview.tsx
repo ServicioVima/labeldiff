@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useLayoutEffect } from 'react';
 import type { FileData } from '../types';
 import { FileText, Image as ImageIcon } from 'lucide-react';
 
@@ -11,10 +11,43 @@ interface Props {
 
 export const FilePreview: React.FC<Props> = ({ file, label, differences, selectedRegion }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [imageSize, setImageSize] = useState<{ w: number; h: number } | null>(null);
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null);
+  const [zoomReady, setZoomReady] = useState(false);
+
+  const hasZoom = Boolean(selectedRegion && !differences);
+  const showCanvas = Boolean(differences);
+
+  useLayoutEffect(() => {
+    if (!hasZoom || !containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0]?.contentRect ?? {};
+      if (width != null && height != null) setContainerSize({ w: width, h: height });
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, [hasZoom]);
+
+  useEffect(() => {
+    if (!file?.previewUrl || !hasZoom) {
+      setImageSize(null);
+      setZoomReady(false);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      setImageSize({ w: img.naturalWidth, h: img.naturalHeight });
+      requestAnimationFrame(() => setZoomReady(true));
+    };
+    img.src = file.previewUrl;
+  }, [file?.previewUrl, hasZoom]);
 
   useEffect(() => {
     if (!file || !canvasRef.current) return;
     if (!differences && !selectedRegion) return;
+    if (hasZoom) return;
+    if (!showCanvas) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -23,6 +56,8 @@ export const FilePreview: React.FC<Props> = ({ file, label, differences, selecte
     img.onload = () => {
       canvas.width = img.width;
       canvas.height = img.height;
+      ctx.imageSmoothingEnabled = true;
+      (ctx as CanvasRenderingContext2D).imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0);
       if (selectedRegion) {
         const [ymin, xmin, ymax, xmax] = selectedRegion;
@@ -65,7 +100,31 @@ export const FilePreview: React.FC<Props> = ({ file, label, differences, selecte
         });
       }
     };
-  }, [file, differences, selectedRegion]);
+  }, [file, differences, selectedRegion, hasZoom, showCanvas]);
+
+  const zoomStyle = (): React.CSSProperties => {
+    if (!hasZoom || !selectedRegion || !imageSize || !containerSize) return {};
+    const [ymin, xmin, ymax, xmax] = selectedRegion;
+    const iw = imageSize.w;
+    const ih = imageSize.h;
+    const cw = containerSize.w;
+    const ch = containerSize.h;
+    const rw = ((xmax - xmin) / 1000) * iw;
+    const rh = ((ymax - ymin) / 1000) * ih;
+    const rx = (xmin / 1000) * iw;
+    const ry = (ymin / 1000) * ih;
+    const scale = Math.max(cw / rw, ch / rh);
+    const tx = cw / 2 - scale * (rx + rw / 2);
+    const ty = ch / 2 - scale * (ry + rh / 2);
+    return {
+      width: iw,
+      height: ih,
+      transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+      transition: zoomReady ? 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
+      imageRendering: 'auto',
+      willChange: zoomReady ? 'transform' : undefined,
+    };
+  };
 
   if (!file) {
     return (
@@ -85,12 +144,40 @@ export const FilePreview: React.FC<Props> = ({ file, label, differences, selecte
         <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{label}</span>
         <span className="text-xs text-zinc-400 truncate max-w-[150px]">{file.name}</span>
       </div>
-      <div className="relative aspect-square rounded-2xl border border-zinc-200 bg-white overflow-hidden flex items-center justify-center group">
+      <div
+        ref={containerRef}
+        className="relative aspect-square rounded-2xl border border-zinc-200 bg-white overflow-hidden flex items-center justify-center group"
+      >
         {canPreview ? (
-          (differences || selectedRegion) ? (
-            <canvas ref={canvasRef} className="max-w-full max-h-full object-contain" />
+          hasZoom ? (
+            <div className="absolute inset-0" style={{ overflow: 'hidden' }}>
+              <img
+                src={file.previewUrl}
+                alt={file.name}
+                decoding="async"
+                fetchPriority="high"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  ...zoomStyle(),
+                  maxWidth: 'none',
+                  objectFit: 'none',
+                }}
+                className="origin-top-left"
+              />
+            </div>
+          ) : showCanvas ? (
+            <canvas ref={canvasRef} className="max-w-full max-h-full object-contain w-full h-full" style={{ imageRendering: 'auto' }} />
           ) : (
-            <img src={file.previewUrl} alt={file.name} className="max-w-full max-h-full object-contain" />
+            <img
+              src={file.previewUrl}
+              alt={file.name}
+              className="max-w-full max-h-full object-contain w-full h-full"
+              decoding="async"
+              fetchPriority="high"
+              style={{ imageRendering: 'auto' }}
+            />
           )
         ) : (
           <div className="flex flex-col items-center gap-3">

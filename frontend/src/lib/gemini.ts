@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { ComparisonResult } from "../types";
+import { cropFileToRegion } from "./cropToRegion";
 
 let cachedApiKey: string | null = null;
 let cachedModel: string = "gemini-1.5-flash";
@@ -28,6 +29,11 @@ export async function analyzeDifferences(
   const ai = new GoogleGenAI({ apiKey });
   const model = cachedModel;
 
+  let f1 = { base64: file1.base64, mimeType: file1.mimeType };
+  let f2 = { base64: file2.base64, mimeType: file2.mimeType };
+  if (region1) f1 = await cropFileToRegion(file1.base64, file1.mimeType, region1);
+  if (region2) f2 = await cropFileToRegion(file2.base64, file2.mimeType, region2);
+
   let regionInstruction = "";
   if (region1 && region2) {
     regionInstruction = `\n\nATENCIÓN: Se han definido áreas de enfoque específicas para cada archivo:
@@ -46,14 +52,14 @@ export async function analyzeDifferences(
           { text: systemPrompt },
           {
             inlineData: {
-              data: file1.base64.split(",")[1] ?? file1.base64,
-              mimeType: file1.mimeType,
+              data: f1.base64.split(",")[1] ?? f1.base64,
+              mimeType: f1.mimeType,
             },
           },
           {
             inlineData: {
-              data: file2.base64.split(",")[1] ?? file2.base64,
-              mimeType: file2.mimeType,
+              data: f2.base64.split(",")[1] ?? f2.base64,
+              mimeType: f2.mimeType,
             },
           },
           {

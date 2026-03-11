@@ -40,9 +40,14 @@ export const RegionSelector: React.FC<Props> = ({ imageUrl, onRegionSelected, in
   };
 
   const handleMouseUp = () => {
-    if (isDrawing) {
+    if (isDrawing && currentRegion) {
       setIsDrawing(false);
-      onRegionSelected(currentRegion);
+      const region = currentRegion;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => onRegionSelected(region));
+      });
+    } else if (isDrawing) {
+      setIsDrawing(false);
     }
   };
 

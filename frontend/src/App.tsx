@@ -74,12 +74,15 @@ export default function App() {
           const arrayBuffer = await file.arrayBuffer();
           const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
           const page = await pdf.getPage(1);
-          const viewport = page.getViewport({ scale: 2.0 });
+          const scale = 3.5;
+          const viewport = page.getViewport({ scale });
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
           if (context) {
             canvas.height = viewport.height;
             canvas.width = viewport.width;
+            context.imageSmoothingEnabled = true;
+            (context as CanvasRenderingContext2D).imageSmoothingQuality = 'high';
             await page.render({ canvasContext: context, viewport }).promise;
             previewUrl = canvas.toDataURL('image/png');
           }
