@@ -138,9 +138,9 @@ Tienes dos formas típicas: **GitHub + despliegue continuo** o **despliegue manu
 
 El proyecto incluye un workflow en **`.github/workflows/azure-app-service.yml`** que:
 
-- Construye el frontend (`npm ci` + `npm run build` en `frontend/`).
-- Empaqueta `main.py`, `requirements.txt`, `backend/` y `frontend/dist/`.
-- Despliega el ZIP en tu App Service.
+- Hace **checkout** del repo y **construye el frontend** en el mismo runner (`npm ci` + `npm run build` en `frontend/`), generando `frontend/dist/` dentro del árbol del repo (no se commitea; está en `.gitignore`).
+- **Despliega el directorio actual** (repo completo con `frontend/dist/` ya creado) a la App Service con `azure/webapps-deploy@v3`. No se usa un zip custom: se sube todo en un solo paso (backend + frontend/dist).
+- El backend (`main.py`) sirve la API en `/api/*` y el SPA desde `frontend/dist/` (estáticos + `index.html`). Un solo App Service sirve ambos.
 
 **Pasos:**
 
@@ -176,7 +176,7 @@ cd ..
    - `main.py`
    - `requirements.txt`
    - carpeta `backend/`
-   - carpeta `frontend/dist/`
+   - carpeta `frontend/dist/` (generada en el pipeline, no en el repo)
    (No incluyas `node_modules`, `.venv`, `.env`, etc.)
 
 3. En el portal: **App Service** → **Implementación** → **ZIP Deploy** (o usa Azure CLI):
@@ -230,7 +230,7 @@ Para que App Service ejecute tu app Python correctamente:
 - [ ] Crear **App Service** (Python 3.11+).
 - [ ] En App Service → **Configuración de la aplicación**: añadir `DATABASE_URL`, `AZURE_STORAGE_CONNECTION_STRING`, `AZURE_STORAGE_CONTAINER`, **`GEMINI_API_KEY`**, `GEMINI_MODEL`, `SECRET_KEY`, `ENV=production`.
 - [ ] Configurar **comando de inicio** (pip install + python main.py o gunicorn).
-- [ ] Conectar **GitHub** en Centro de implementación (o desplegar ZIP) y asegurarte de que el build genera `frontend/dist/` y que el despliegue incluye `main.py`, `backend/`, `frontend/dist/`, `requirements.txt`.
+- [ ] Usar **solo** el workflow de GitHub Actions para desplegar (no el “sync desde GitHub” del Centro de implementación, que no ejecuta el build y no incluye `frontend/dist/`). El workflow construye el frontend y despliega el repo completo; el backend sirve API + SPA.
 - [ ] En PostgreSQL → Redes: permitir acceso desde Azure / App Service.
 
 Con esto tienes desplegada la app en App Service, con PostgreSQL, Blob y la API key de Gemini configurada solo en App Service (sin ponerla en código ni en GitHub).

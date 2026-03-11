@@ -1,4 +1,5 @@
 # Despliega a Azure App Service al hacer push a main.
+# Build del frontend en el pipeline; deploy del repo completo (con frontend/dist ya generado).
 # Configura en el repo: Settings → Secrets and variables → Actions:
 #   AZURE_WEBAPP_PUBLISH_PROFILE (contenido del perfil de publicación de la App Service)
 
@@ -12,7 +13,6 @@ on:
 env:
   AZURE_WEBAPP_NAME: labeldiff-app
   NODE_VERSION: '20'
-  PYTHON_VERSION: '3.11'
 
 jobs:
   build-and-deploy:
@@ -28,29 +28,21 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
-
       - name: Build frontend
-        run: npm run build
+        run: |
+          npm ci
+          npm run build
         working-directory: frontend
         env:
-          # La API key de Gemini no va aquí; se configura en App Service
           GEMINI_API_KEY: ''
           VITE_API_BASE: ''
 
-      - name: Create deployment package
-        run: |
-          mkdir -p deploy
-          cp main.py requirements.txt deploy/
-          cp -r backend deploy/
-          cp -r frontend/dist deploy/frontend/
-          cd deploy && zip -r ../deploy.zip . && cd ..
+      - name: Reducir tamaño del deploy (quitar node_modules del frontend)
+        run: rm -rf frontend/node_modules
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: deploy.zip
+          package: .
