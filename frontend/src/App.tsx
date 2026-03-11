@@ -179,15 +179,15 @@ export default function App() {
         className="h-screen sticky top-0 border-r border-zinc-200 bg-white flex flex-col overflow-hidden shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-30 shrink-0"
       >
         <div className="p-6 flex flex-col h-full gap-8">
-          <div className="flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
-                <Layers className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-between shrink-0 gap-2">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0 bg-white border border-zinc-100">
+                <img src="/vimafoods-logo.png" alt="Vimafoods" className="w-full h-full object-contain p-0.5" />
               </div>
               {!isSidebarCollapsed && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="whitespace-nowrap">
-                  <h1 className="font-black text-xl tracking-tight text-zinc-900 leading-none">Vima Etiquetas</h1>
-                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-[0.2em] mt-1">Análisis de etiquetas con IA</p>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-w-0 flex-1">
+                  <h1 className="font-black text-base sm:text-lg tracking-tight text-zinc-900 leading-tight break-words">Vima Etiquetas</h1>
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5 leading-tight break-words">Análisis de etiquetas con IA</p>
                 </motion.div>
               )}
             </div>
