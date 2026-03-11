@@ -11,6 +11,7 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
 from backend.app import create_app
 
@@ -31,6 +32,19 @@ app.add_middleware(
 # Montar archivos estáticos del frontend en la raíz (solo si existe dist)
 if DIST_PATH.exists():
     app.mount("/", StaticFiles(directory=str(DIST_PATH), html=True), name="frontend")
+else:
+    # Fallback si frontend/dist no está en el deploy (evita 404 JSON en la raíz)
+    @app.get("/")
+    def _root():
+        return HTMLResponse(
+            status_code=200,
+            content="""<!DOCTYPE html><html><head><meta charset="utf-8"><title>LabelDiff</title></head><body style="font-family:sans-serif;padding:2rem;">
+            <h1>LabelDiff</h1>
+            <p>El frontend no está desplegado en este entorno (falta <code>frontend/dist</code>).</p>
+            <p>Asegúrate de que el workflow de GitHub Actions construye el frontend y despliega el repo completo.</p>
+            <p><a href="/api/health">Comprobar API</a></p>
+            </body></html>""",
+        )
 
 if __name__ == "__main__":
     import uvicorn
