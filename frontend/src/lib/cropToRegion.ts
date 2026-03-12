@@ -111,6 +111,11 @@ export async function cropFileToRegion(
   mimeType: string,
   region: Region
 ): Promise<{ base64: string; mimeType: string }> {
+  // Si el base64 es en realidad una imagen (ej. preview de PDF), recortar como imagen
+  if (base64.startsWith("data:image/")) {
+    const mime = base64.match(/data:([^;]+)/)?.[1] ?? "image/png";
+    return cropImageToRegion(base64, mime, region);
+  }
   if (mimeType === "application/pdf") {
     return cropPdfToRegion(base64, region);
   }

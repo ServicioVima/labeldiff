@@ -42,6 +42,8 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<[number, number, number, number] | null>(null);
+  const [selectedRegion2, setSelectedRegion2] = useState<[number, number, number, number] | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isFocusMode2, setIsFocusMode2] = useState(false);
   const [comparisonPairs, setComparisonPairs] = useState<ComparisonPair[]>([]);
@@ -149,6 +151,10 @@ export default function App() {
 
   const handleCompare = async () => {
     if (!file1 || !file2) return;
+    if (!file1.base64?.trim?.() || !file2.base64?.trim?.()) {
+      setError('Uno o ambos archivos no tienen imagen válida. Vuelva a subirlos (PDF o imagen).');
+      return;
+    }
     setIsAnalyzing(true);
     setError(null);
     setResult(null);
@@ -161,18 +167,22 @@ export default function App() {
         { base64: file1.base64, mimeType: file1.type },
         { base64: file2.base64, mimeType: file2.type },
         combinedPrompt,
-        undefined,
-        undefined,
+        comparisonPairs.length > 0 ? undefined : selectedRegion ?? undefined,
+        comparisonPairs.length > 0 ? undefined : selectedRegion2 ?? undefined,
         comparisonPairs.length > 0 ? comparisonPairs : undefined,
       );
       setResult(analysis);
     } catch (err) {
-      console.error(err);
+      console.error('Error de análisis:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('GEMINI_API_KEY') || msg.includes('no configurada') || msg.includes('apiKey')) {
-        setError('Falta la API key de Gemini. En Azure App Service configure GEMINI_API_KEY y GEMINI_API_KEY_EXPOSE=true.');
+      if (msg.includes('GEMINI_API_KEY') || msg.includes('no configurada') || msg.includes('Clave de API')) {
+        setError('Falta o es inválida la API key de Gemini. En Azure configure GEMINI_API_KEY y GEMINI_API_KEY_EXPOSE=true.');
+      } else if (msg.includes('Límite') || msg.includes('429') || msg.includes('quota')) {
+        setError(msg);
+      } else if (msg.includes('blocked') || msg.includes('política de contenido')) {
+        setError(msg);
       } else {
-        setError('Error al analizar los archivos. Por favor, intenta de nuevo.');
+        setError(msg || 'Error al analizar los archivos. Por favor, intente de nuevo.');
       }
     } finally {
       setIsAnalyzing(false);
@@ -392,9 +402,9 @@ export default function App() {
                   <div className="h-full min-h-[600px]" onClick={(e) => e.stopPropagation()}>
                     <RegionSelector
                       imageUrl={file1.previewUrl}
-                      onRegionSelected={(r) => activePairId && updatePairRegion(activePairId, 1, r)}
+                      onRegionSelected={(r) => (activePairId ? updatePairRegion(activePairId, 1, r) : setSelectedRegion(r))}
                       onConfirmSelection={() => setIsFocusMode(false)}
-                      initialRegion={activePair?.region1 ?? null}
+                      initialRegion={activePair?.region1 ?? selectedRegion}
                       totalPages={file1.totalPages}
                       currentPage={currentPage1}
                       onPageChange={(p) => handlePageChange('left', p)}
@@ -406,19 +416,29 @@ export default function App() {
                     <FilePreview
                       file={file1}
                       label="Versión de Referencia"
-                      selectedRegion={activePair?.region1 ?? null}
+                      selectedRegion={activePair?.region1 ?? selectedRegion}
                       currentPage={currentPage1}
                       onPageChange={(p) => handlePageChange('left', p)}
                       isLoading={isChangingPage}
                     />
-                    {file1 && (
-                      <button onClick={(e) => { e.stopPropagation(); setFile1(null); setResult(null); setIsFocusMode(false); setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
-                        <X className="w-5 h-5" />
-                      </button>
+                    {file1 && !isFocusMode && (
+                      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setActivePairId(null); setIsFocusMode(true); setIsFocusMode2(false); }} className="flex items-center gap-2 px-3 py-2 bg-white/95 backdrop-blur-sm rounded-xl text-zinc-600 hover:text-emerald-600 hover:bg-emerald-50 transition-all shadow-lg border border-zinc-200 text-xs font-bold" title="Definir área de enfoque para el análisis">
+                          <Target className="w-4 h-4" /> Enfocar área
+                        </button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setFile1(null); setResult(null); setSelectedRegion(null); setIsFocusMode(false); setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
                     )}
-                    {(activePair?.region1 ?? null) && !isFocusMode && (
-                      <div className="absolute bottom-4 left-4 z-20 px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg flex items-center gap-2 shadow-lg">
-                        <Target className="w-3 h-3" /> {activePair ? `ÁREA: ${activePair.name}` : 'ÁREA DE ENFOQUE ACTIVA'}
+                    {(activePair?.region1 ?? selectedRegion) && !isFocusMode && (
+                      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
+                        <div className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg flex items-center gap-2 shadow-lg">
+                          <Target className="w-3 h-3" /> {activePair ? `ÁREA: ${activePair.name}` : 'ÁREA DE ENFOQUE ACTIVA'}
+                        </div>
+                        {!activePairId && selectedRegion && (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedRegion(null); }} className="px-2 py-1 rounded-lg bg-white/95 border border-zinc-200 text-[10px] font-bold text-zinc-500 hover:text-red-600 hover:border-red-200 transition-colors">Limpiar</button>
+                        )}
                       </div>
                     )}
                   </>
@@ -441,9 +461,9 @@ export default function App() {
                   <div className="h-full min-h-[600px]" onClick={(e) => e.stopPropagation()}>
                     <RegionSelector
                       imageUrl={file2.previewUrl}
-                      onRegionSelected={(r) => activePairId && updatePairRegion(activePairId, 2, r)}
+                      onRegionSelected={(r) => (activePairId ? updatePairRegion(activePairId, 2, r) : setSelectedRegion2(r))}
                       onConfirmSelection={() => setIsFocusMode2(false)}
-                      initialRegion={activePair?.region2 ?? null}
+                      initialRegion={activePair?.region2 ?? selectedRegion2}
                       totalPages={file2.totalPages}
                       currentPage={currentPage2}
                       onPageChange={(p) => handlePageChange('right', p)}
@@ -455,26 +475,36 @@ export default function App() {
                     <FilePreview
                       file={file2}
                       label="Nueva Versión"
-                      selectedRegion={activePair?.region2 ?? null}
+                      selectedRegion={activePair?.region2 ?? selectedRegion2}
                       differences={result?.visualDifferences}
                       currentPage={currentPage2}
                       onPageChange={(p) => handlePageChange('right', p)}
                       isLoading={isChangingPage}
                       showDownload
                     />
-                    {file2 && (
+                    {file2 && !isFocusMode2 && (
+                      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setActivePairId(null); setIsFocusMode(false); setIsFocusMode2(true); }} className="flex items-center gap-2 px-3 py-2 bg-white/95 backdrop-blur-sm rounded-xl text-zinc-600 hover:text-emerald-600 hover:bg-emerald-50 transition-all shadow-lg border border-zinc-200 text-xs font-bold" title="Definir área de enfoque para el análisis">
+                          <Target className="w-4 h-4" /> Enfocar área
+                        </button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setFile2(null); setResult(null); setSelectedRegion2(null); setIsFocusMode2(false); setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    )}
+                    {file2 && !isFocusMode2 && (
                       <div className="absolute top-4 left-4 z-20 px-3 py-1.5 bg-zinc-800 text-white text-[10px] font-bold rounded-lg shadow-lg tracking-wider">
                         VERSIÓN PARA FÁBRICA
                       </div>
                     )}
-                    {file2 && (
-                      <button onClick={(e) => { e.stopPropagation(); setFile2(null); setResult(null); setIsFocusMode2(false); setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
-                        <X className="w-5 h-5" />
-                      </button>
-                    )}
-                    {(activePair?.region2 ?? null) && !isFocusMode2 && (
-                      <div className="absolute bottom-4 left-4 z-20 px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg flex items-center gap-2 shadow-lg">
-                        <Target className="w-3 h-3" /> {activePair ? `ÁREA: ${activePair.name}` : 'ENFOQUE ESPECÍFICO ACTIVO'}
+                    {(activePair?.region2 ?? selectedRegion2) && !isFocusMode2 && (
+                      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
+                        <div className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg flex items-center gap-2 shadow-lg">
+                          <Target className="w-3 h-3" /> {activePair ? `ÁREA: ${activePair.name}` : 'ÁREA DE ENFOQUE ACTIVA'}
+                        </div>
+                        {!activePairId && selectedRegion2 && (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedRegion2(null); }} className="px-2 py-1 rounded-lg bg-white/95 border border-zinc-200 text-[10px] font-bold text-zinc-500 hover:text-red-600 hover:border-red-200 transition-colors">Limpiar</button>
+                        )}
                       </div>
                     )}
                   </>
