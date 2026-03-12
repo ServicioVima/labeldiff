@@ -5,7 +5,7 @@ import {
   Upload, Search, AlertCircle, CheckCircle2, Layers, ArrowRightLeft, Loader2, FileText, Sparkles, Zap, Download, History, Info, ChevronLeft, ChevronRight, Menu, X, Crosshair, Target, Trash2, LogIn, User, Plus, Minus, Pencil, AlertTriangle,
 } from 'lucide-react';
 
-import { cn } from './lib/utils';
+import { cn, fullImageBoxToCropBox } from './lib/utils';
 import type { FileData, LabelDefinition, ComparisonResult, CategorizedChangeType, ComparisonPair } from './types';
 import { setGeminiConfig, analyzeDifferences, cropBase64Image } from './lib/gemini';
 import { getConfig } from './lib/api';
@@ -14,6 +14,7 @@ import { LabelManager } from './components/LabelManager';
 import { FilePreview } from './components/FilePreview';
 import { ComparisonSlider } from './components/ComparisonSlider';
 import { CroppedComparisonSlider } from './components/CroppedComparisonSlider';
+import { AreaMarkedPreview } from './components/AreaMarkedPreview';
 import { RegionSelector } from './components/RegionSelector';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ReactMarkdown from 'react-markdown';
@@ -635,6 +636,35 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+                    {/* Por área: una imagen marcada por área cuando hay áreas definidas */}
+                    {comparisonPairs.length > 0 && result.visualDifferences.length > 0 && (
+                      <div className="space-y-6 bg-emerald-50/50 p-8 rounded-[3rem] border border-emerald-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1 h-4 bg-emerald-500 rounded-full" />
+                          <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Nueva versión con marcas por área</span>
+                        </div>
+                        <p className="text-sm text-zinc-600">Cada recorte muestra solo las diferencias de esa zona. Descarga la imagen marcada por área.</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {comparisonPairs.filter((p) => p.region2 && pairThumbnails[p.id]?.thumb2).map((pair) => {
+                            const areaDiffs = result.visualDifferences.filter((d) => d.areaName === pair.name);
+                            const differencesInCrop = areaDiffs.map((d) => ({
+                              box_2d: fullImageBoxToCropBox(d.box_2d, pair.region2!),
+                              label: d.label,
+                            }));
+                            return (
+                              <div key={pair.id} className="bg-white rounded-2xl border border-zinc-200 p-4 shadow-lg">
+                                <AreaMarkedPreview
+                                  imageUrl={pairThumbnails[pair.id].thumb2!}
+                                  areaName={pair.name}
+                                  differences={differencesInCrop}
+                                  showDownload
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     {/* Comparación Interactiva (Modo Cortina) */}
                     <div className="space-y-6 bg-zinc-50 p-8 rounded-[3rem] border border-zinc-200">
                       <div className="flex items-center gap-2">
@@ -770,10 +800,17 @@ export default function App() {
                                       </div>
                                     </div>
                                     <div className="space-y-1">
-                                      <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Nueva Versión</span>
-                                      <div className="aspect-video rounded-xl overflow-hidden border border-zinc-200 bg-white">
-                                        {pairThumbnails[pair.id]?.thumb2 ? <img src={pairThumbnails[pair.id].thumb2} className="w-full h-full object-contain" alt="New" /> : <div className="w-full h-full flex items-center justify-center text-[8px] text-zinc-300">Sin área</div>}
-                                      </div>
+                                      <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Nueva versión con marcas</span>
+                                      {pair.region2 && pairThumbnails[pair.id]?.thumb2 ? (
+                                        <AreaMarkedPreview
+                                          imageUrl={pairThumbnails[pair.id].thumb2}
+                                          areaName={pair.name}
+                                          differences={result.visualDifferences.filter((d) => d.areaName === pair.name).map((d) => ({ box_2d: fullImageBoxToCropBox(d.box_2d, pair.region2!), label: d.label }))}
+                                          showDownload
+                                        />
+                                      ) : (
+                                        <div className="aspect-video rounded-xl overflow-hidden border border-zinc-200 bg-white flex items-center justify-center text-[8px] text-zinc-300">Sin área</div>
+                                      )}
                                     </div>
                                   </div>
                                   {pair.prompt && (
