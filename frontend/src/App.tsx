@@ -42,8 +42,6 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRegion, setSelectedRegion] = useState<[number, number, number, number] | null>(null);
-  const [selectedRegion2, setSelectedRegion2] = useState<[number, number, number, number] | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isFocusMode2, setIsFocusMode2] = useState(false);
   const [comparisonPairs, setComparisonPairs] = useState<ComparisonPair[]>([]);
@@ -97,7 +95,14 @@ export default function App() {
           previewUrl = '';
         }
       }
-      const fileData: FileData = { name: file.name, type: file.type, base64, previewUrl, totalPages, arrayBuffer };
+      const fileData: FileData = {
+        name: file.name,
+        type: file.type,
+        base64: file.type === 'application/pdf' ? previewUrl : base64,
+        previewUrl,
+        totalPages,
+        arrayBuffer,
+      };
       if (side === 'left') { setFile1(fileData); setCurrentPage1(1); }
       else { setFile2(fileData); setCurrentPage2(1); }
       setResult(null);
@@ -156,8 +161,8 @@ export default function App() {
         { base64: file1.base64, mimeType: file1.type },
         { base64: file2.base64, mimeType: file2.type },
         combinedPrompt,
-        comparisonPairs.length > 0 ? undefined : (selectedRegion ?? undefined),
-        comparisonPairs.length > 0 ? undefined : (selectedRegion2 ?? undefined),
+        undefined,
+        undefined,
         comparisonPairs.length > 0 ? comparisonPairs : undefined,
       );
       setResult(analysis);
@@ -356,21 +361,6 @@ export default function App() {
             <div className="flex flex-col md:flex-row md:items-end gap-4">
               {(file1 || file2) && (
                 <div className="flex flex-wrap gap-2">
-                  {file1 && (
-                    <button onClick={() => setIsFocusMode(!isFocusMode)} className={cn("px-5 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all border-2", isFocusMode ? "bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-500/20" : "bg-white border-zinc-200 text-zinc-600 hover:border-emerald-500 hover:text-emerald-600")}>
-                      <Target className={cn("w-4 h-4", isFocusMode && "animate-pulse")} /> {isFocusMode ? "Cerrar Enfoque Ref." : "Enfocar Referencia"}
-                    </button>
-                  )}
-                  {file2 && (
-                    <button onClick={() => setIsFocusMode2(!isFocusMode2)} className={cn("px-5 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all border-2", isFocusMode2 ? "bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-500/20" : "bg-white border-zinc-200 text-zinc-600 hover:border-emerald-500 hover:text-emerald-600")}>
-                      <Target className={cn("w-4 h-4", isFocusMode2 && "animate-pulse")} /> {isFocusMode2 ? "Cerrar Enfoque Nuevo" : "Enfocar Nuevo"}
-                    </button>
-                  )}
-                  {(selectedRegion || selectedRegion2) && !isFocusMode && !isFocusMode2 && (
-                    <button onClick={() => { setSelectedRegion(null); setSelectedRegion2(null); }} className="p-3 rounded-2xl bg-white border-2 border-zinc-200 text-zinc-400 hover:border-red-200 hover:text-red-500 transition-all" title="Limpiar todos los enfoques">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
               )}
               <button onClick={handleCompare} disabled={!file1 || !file2 || isAnalyzing} className={cn("group relative px-8 py-4 rounded-2xl font-bold text-lg flex items-center gap-3 transition-all overflow-hidden", (!file1 || !file2 || isAnalyzing) ? "bg-zinc-100 text-zinc-400 cursor-not-allowed" : "bg-zinc-900 text-white hover:bg-emerald-600 hover:scale-105 active:scale-95 shadow-xl shadow-zinc-900/10")}>
@@ -402,9 +392,9 @@ export default function App() {
                   <div className="h-full min-h-[600px]" onClick={(e) => e.stopPropagation()}>
                     <RegionSelector
                       imageUrl={file1.previewUrl}
-                      onRegionSelected={(r) => (activePairId ? updatePairRegion(activePairId, 1, r) : setSelectedRegion(r))}
+                      onRegionSelected={(r) => activePairId && updatePairRegion(activePairId, 1, r)}
                       onConfirmSelection={() => setIsFocusMode(false)}
-                      initialRegion={activePair?.region1 ?? selectedRegion}
+                      initialRegion={activePair?.region1 ?? null}
                       totalPages={file1.totalPages}
                       currentPage={currentPage1}
                       onPageChange={(p) => handlePageChange('left', p)}
@@ -416,17 +406,17 @@ export default function App() {
                     <FilePreview
                       file={file1}
                       label="Versión de Referencia"
-                      selectedRegion={activePair?.region1 ?? selectedRegion}
+                      selectedRegion={activePair?.region1 ?? null}
                       currentPage={currentPage1}
                       onPageChange={(p) => handlePageChange('left', p)}
                       isLoading={isChangingPage}
                     />
                     {file1 && (
-                      <button onClick={(e) => { e.stopPropagation(); setFile1(null); setResult(null); setSelectedRegion(null); setIsFocusMode(false); setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
+                      <button onClick={(e) => { e.stopPropagation(); setFile1(null); setResult(null); setIsFocusMode(false); setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
                         <X className="w-5 h-5" />
                       </button>
                     )}
-                    {(activePair?.region1 ?? selectedRegion) && !isFocusMode && (
+                    {(activePair?.region1 ?? null) && !isFocusMode && (
                       <div className="absolute bottom-4 left-4 z-20 px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg flex items-center gap-2 shadow-lg">
                         <Target className="w-3 h-3" /> {activePair ? `ÁREA: ${activePair.name}` : 'ÁREA DE ENFOQUE ACTIVA'}
                       </div>
@@ -451,9 +441,9 @@ export default function App() {
                   <div className="h-full min-h-[600px]" onClick={(e) => e.stopPropagation()}>
                     <RegionSelector
                       imageUrl={file2.previewUrl}
-                      onRegionSelected={(r) => (activePairId ? updatePairRegion(activePairId, 2, r) : setSelectedRegion2(r))}
+                      onRegionSelected={(r) => activePairId && updatePairRegion(activePairId, 2, r)}
                       onConfirmSelection={() => setIsFocusMode2(false)}
-                      initialRegion={activePair?.region2 ?? selectedRegion2}
+                      initialRegion={activePair?.region2 ?? null}
                       totalPages={file2.totalPages}
                       currentPage={currentPage2}
                       onPageChange={(p) => handlePageChange('right', p)}
@@ -465,7 +455,7 @@ export default function App() {
                     <FilePreview
                       file={file2}
                       label="Nueva Versión"
-                      selectedRegion={activePair?.region2 ?? selectedRegion2}
+                      selectedRegion={activePair?.region2 ?? null}
                       differences={result?.visualDifferences}
                       currentPage={currentPage2}
                       onPageChange={(p) => handlePageChange('right', p)}
@@ -478,11 +468,11 @@ export default function App() {
                       </div>
                     )}
                     {file2 && (
-                      <button onClick={(e) => { e.stopPropagation(); setFile2(null); setResult(null); setSelectedRegion2(null); setIsFocusMode2(false); setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
+                      <button onClick={(e) => { e.stopPropagation(); setFile2(null); setResult(null); setIsFocusMode2(false); setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
                         <X className="w-5 h-5" />
                       </button>
                     )}
-                    {(activePair?.region2 ?? selectedRegion2) && !isFocusMode2 && (
+                    {(activePair?.region2 ?? null) && !isFocusMode2 && (
                       <div className="absolute bottom-4 left-4 z-20 px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg flex items-center gap-2 shadow-lg">
                         <Target className="w-3 h-3" /> {activePair ? `ÁREA: ${activePair.name}` : 'ENFOQUE ESPECÍFICO ACTIVO'}
                       </div>
@@ -581,46 +571,60 @@ export default function App() {
             {result && (
               <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} className="space-y-12">
                 <div className="h-px bg-zinc-200 w-full" />
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-                  <div className="lg:col-span-6 space-y-8">
-                    <div className="space-y-4">
+                <div className="space-y-12">
+                  {/* Análisis Visual Detallado - como referencia */}
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <h3 className="text-3xl font-black text-zinc-900">Análisis Visual Detallado</h3>
+                        <p className="text-sm text-zinc-500">Inspección profunda de las discrepancias detectadas.</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1 h-4 bg-zinc-400 rounded-full" />
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Versión de Referencia (v1)</span>
+                        </div>
+                        <div className="bg-white rounded-[2.5rem] border border-zinc-200 p-4 shadow-xl">
+                          <FilePreview file={file1} label="Referencia Original" currentPage={currentPage1} onPageChange={(p) => handlePageChange('left', p)} isLoading={isChangingPage} showDownload />
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1 h-4 bg-emerald-500 rounded-full" />
+                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Nueva Versión Detectada (v2)</span>
+                          </div>
+                          <span className="px-2 py-1 bg-emerald-600 text-white text-[9px] font-black rounded-md uppercase">Diferencias Marcadas</span>
+                        </div>
+                        <div className="bg-white rounded-[2.5rem] border border-emerald-100 p-4 shadow-xl ring-4 ring-emerald-500/5">
+                          <FilePreview file={file2} label="Nueva Versión con Marcas" differences={result.visualDifferences} currentPage={currentPage2} onPageChange={(p) => handlePageChange('right', p)} isLoading={isChangingPage} showDownload />
+                        </div>
+                      </div>
+                    </div>
+                    {/* Comparación Interactiva (Modo Cortina) */}
+                    <div className="space-y-6 bg-zinc-50 p-8 rounded-[3rem] border border-zinc-200">
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-                          {comparisonPairs.length > 0 ? 'Comparación por áreas' : 'Modo Cortina (Antes/Después)'}
-                        </span>
+                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Comparación Interactiva (Modo Cortina)</span>
                       </div>
                       {comparisonPairs.length > 0 ? (
-                        <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                           {comparisonPairs.map((pair) => (
-                            <div key={pair.id} className="space-y-2">
-                              <p className="text-xs font-bold text-zinc-600">{pair.name}</p>
-                              <CroppedComparisonSlider leftImage={file1?.previewUrl ?? ''} rightImage={file2?.previewUrl ?? ''} region1={pair.region1} region2={pair.region2} name={pair.name} />
-                            </div>
+                            <CroppedComparisonSlider key={pair.id} leftImage={file1?.previewUrl ?? ''} rightImage={file2?.previewUrl ?? ''} region1={pair.region1} region2={pair.region2} name={pair.name} />
                           ))}
                         </div>
                       ) : (
-                        <ComparisonSlider leftImage={file1?.previewUrl ?? ''} rightImage={file2?.previewUrl ?? ''} />
+                        <div className="max-w-4xl mx-auto">
+                          <ComparisonSlider leftImage={file1?.previewUrl ?? ''} rightImage={file2?.previewUrl ?? ''} />
+                        </div>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1 h-4 bg-zinc-400 rounded-full" />
-                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Versión de Referencia</span>
-                        </div>
-                        <FilePreview file={file1} label="Versión de Referencia" selectedRegion={activePair?.region1 ?? selectedRegion} currentPage={currentPage1} onPageChange={(p) => handlePageChange('left', p)} isLoading={isChangingPage} />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Nueva Versión (con diferencias)</span>
-                        </div>
-                        <FilePreview file={file2} label="Versión para fábrica" differences={result.visualDifferences} selectedRegion={activePair?.region2 ?? selectedRegion2} currentPage={currentPage2} onPageChange={(p) => handlePageChange('right', p)} isLoading={isChangingPage} showDownload />
-                      </div>
-                    </div>
                   </div>
-                  <div className="lg:col-span-6 space-y-6 lg:sticky lg:top-8">
+
+                  {/* Reporte IA - full width, agrupado por área */}
+                  <div className="lg:col-span-12 space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center shadow-lg"><FileText className="w-5 h-5 text-white" /></div>
@@ -631,85 +635,140 @@ export default function App() {
                       </button>
                     </div>
                     <div className="bg-white rounded-[2.5rem] border border-zinc-200 p-10 shadow-2xl shadow-zinc-200/40 relative overflow-hidden group min-h-[500px] flex flex-col">
-                      {result.categorizedChanges && result.categorizedChanges.length > 0 && (() => {
-                        const withArea = result.categorizedChanges!.filter((c) => c.areaName);
-                        const withoutArea = result.categorizedChanges!.filter((c) => !c.areaName);
-                        const areas = [...new Set(withArea.map((c) => c.areaName!))];
-                        return (
-                          <div className="mb-6 space-y-6">
-                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Cambios por categoría</p>
-                            {areas.length > 0 && (
-                              <div className="space-y-4">
-                                {areas.map((area) => {
-                                  const items = withArea.filter((c) => c.areaName === area);
-                                  return (
-                                    <div key={area} className="rounded-2xl border border-zinc-100 p-4 bg-zinc-50/50">
-                                      <p className="text-xs font-black text-zinc-600 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                        <Target className="w-3.5 h-3.5" /> {area}
-                                      </p>
-                                      <div className="flex flex-wrap gap-2">
-                                        {(['added', 'removed', 'modified', 'absent'] as CategorizedChangeType[]).map((t) => {
-                                          const byType = items.filter((c) => c.type === t);
-                                          if (byType.length === 0) return null;
-                                          const config = { added: { bg: 'bg-emerald-100', text: 'text-emerald-800', icon: Plus }, removed: { bg: 'bg-red-100', text: 'text-red-800', icon: Minus }, modified: { bg: 'bg-amber-100', text: 'text-amber-800', icon: Pencil }, absent: { bg: 'bg-violet-100', text: 'text-violet-800', icon: AlertTriangle } }[t];
-                                          const Icon = config.icon;
-                                          const labels = { added: 'Nuevos', removed: 'Eliminados', modified: 'Modificados', absent: 'Ausentes' };
-                                          return (
-                                            <div key={t} className={cn('rounded-xl border p-3 min-w-[120px]', config.bg, 'border-transparent')}>
-                                              <div className="flex items-center gap-2 mb-1.5">
-                                                <Icon className={cn('w-4 h-4', config.text)} />
-                                                <span className={cn('text-xs font-bold uppercase tracking-wider', config.text)}>{labels[t]}</span>
-                                              </div>
-                                              <ul className="space-y-1">
-                                                {byType.map((c, i) => (
-                                                  <li key={i} className={cn('text-xs leading-snug', config.text)}>{c.label}</li>
-                                                ))}
-                                              </ul>
-                                            </div>
-                                          );
-                                        })}
+                      <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full -mr-24 -mt-24 blur-3xl" />
+                      <div className="relative flex-1 space-y-10">
+                        {/* Resumen de Cambios - agrupado por areaName, estilo referencia (field, description, oldValue, newValue) */}
+                        {result.categorizedChanges && result.categorizedChanges.length > 0 && (
+                          <div className="space-y-8">
+                            <div className="flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              <h4 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Resumen de Cambios</h4>
+                            </div>
+                            {Object.entries(
+                              result.categorizedChanges.reduce((acc, change) => {
+                                const key = change.areaName ?? 'General';
+                                if (!acc[key]) acc[key] = [];
+                                acc[key].push(change);
+                                return acc;
+                              }, {} as Record<string, NonNullable<typeof result.categorizedChanges>>)
+                            ).map(([areaName, changes], areaIdx) => (
+                              <div key={areaName} className="space-y-4">
+                                {areaName !== 'General' && (
+                                  <div className="flex items-center gap-2 px-1">
+                                    <Target className="w-3 h-3 text-emerald-500" />
+                                    <span className="text-[10px] font-black text-zinc-900 uppercase tracking-widest">{areaName}</span>
+                                  </div>
+                                )}
+                                <div className="grid gap-3">
+                                  {changes.map((c, idx) => (
+                                    <motion.div
+                                      key={idx}
+                                      initial={{ opacity: 0, x: -10 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: areaIdx * 0.1 + idx * 0.05 }}
+                                      className={cn(
+                                        'p-4 rounded-2xl border flex items-start gap-4 transition-all hover:scale-[1.01]',
+                                        c.type === 'added' && 'bg-emerald-50/50 border-emerald-100 text-emerald-900',
+                                        c.type === 'removed' && 'bg-red-50/50 border-red-100 text-red-900',
+                                        c.type === 'modified' && 'bg-amber-50/50 border-amber-100 text-amber-900',
+                                        c.type === 'absent' && 'bg-purple-50/50 border-purple-100 text-purple-900'
+                                      )}
+                                    >
+                                      <div className={cn(
+                                        'w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm',
+                                        c.type === 'added' && 'bg-emerald-500 text-white',
+                                        c.type === 'removed' && 'bg-red-500 text-white',
+                                        c.type === 'modified' && 'bg-amber-500 text-white',
+                                        c.type === 'absent' && 'bg-purple-500 text-white'
+                                      )}>
+                                        {c.type === 'added' && <CheckCircle2 className="w-4 h-4" />}
+                                        {c.type === 'removed' && <X className="w-4 h-4" />}
+                                        {c.type === 'modified' && <ArrowRightLeft className="w-4 h-4" />}
+                                        {c.type === 'absent' && <AlertTriangle className="w-4 h-4" />}
                                       </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                            {withoutArea.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {(['added', 'removed', 'modified', 'absent'] as CategorizedChangeType[]).map((t) => {
-                                  const items = withoutArea.filter((c) => c.type === t);
-                                  if (items.length === 0) return null;
-                                  const config = { added: { bg: 'bg-emerald-100', text: 'text-emerald-800', icon: Plus }, removed: { bg: 'bg-red-100', text: 'text-red-800', icon: Minus }, modified: { bg: 'bg-amber-100', text: 'text-amber-800', icon: Pencil }, absent: { bg: 'bg-violet-100', text: 'text-violet-800', icon: AlertTriangle } }[t];
-                                  const Icon = config.icon;
-                                  const labels = { added: 'Nuevos', removed: 'Eliminados', modified: 'Modificados', absent: 'Ausentes' };
-                                  return (
-                                    <div key={t} className={cn('rounded-xl border p-3 min-w-[140px]', config.bg, 'border-transparent')}>
-                                      <div className="flex items-center gap-2 mb-1.5">
-                                        <Icon className={cn('w-4 h-4', config.text)} />
-                                        <span className={cn('text-xs font-bold uppercase tracking-wider', config.text)}>{labels[t]}</span>
+                                      <div className="flex-1 space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <p className="text-sm font-black uppercase tracking-tight">{c.field ?? c.label ?? 'Cambio'}</p>
+                                          <span className="text-[10px] font-bold uppercase opacity-60">
+                                            {c.type === 'added' ? 'Añadido' : c.type === 'removed' ? 'Eliminado' : c.type === 'modified' ? 'Modificado' : 'Ausente'}
+                                          </span>
+                                        </div>
+                                        <p className="text-xs opacity-80 leading-relaxed">{c.description ?? c.label ?? ''}</p>
+                                        {c.type === 'modified' && (c.oldValue != null || c.newValue != null) && (
+                                          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-black/5 text-[10px] font-medium">
+                                            <span className="line-through opacity-40">{c.oldValue ?? '-'}</span>
+                                            <ArrowRightLeft className="w-3 h-3 opacity-40" />
+                                            <span className="font-bold">{c.newValue ?? '-'}</span>
+                                          </div>
+                                        )}
                                       </div>
-                                      <ul className="space-y-1">
-                                        {items.map((c, i) => (
-                                          <li key={i} className={cn('text-xs leading-snug', config.text)}>{c.label}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  );
-                                })}
+                                    </motion.div>
+                                  ))}
+                                </div>
                               </div>
-                            )}
+                            ))}
                           </div>
-                        );
-                      })()}
-                      <div className="relative flex-1 prose prose-zinc max-w-none markdown-report">
-                        <ReactMarkdown>{result.textualDifferences}</ReactMarkdown>
+                        )}
+
+                        {/* Comparación por Áreas - thumbnails y prompt por par */}
+                        {comparisonPairs.length > 0 && (
+                          <div className="space-y-6">
+                            <div className="flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              <h4 className="text-xs font-black text-zinc-400 uppercase tracking-widest">Comparación por Áreas</h4>
+                            </div>
+                            <div className="grid gap-6">
+                              {comparisonPairs.map((pair) => (
+                                <div key={pair.id} className="p-6 rounded-[2rem] bg-zinc-50 border border-zinc-100 space-y-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <h5 className="font-black text-zinc-900 uppercase tracking-tight text-sm">{pair.name}</h5>
+                                      {result.visualDifferences.filter((d) => d.areaName === pair.name).length > 0 && (
+                                        <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[8px] font-black uppercase">
+                                          {result.visualDifferences.filter((d) => d.areaName === pair.name).length} Diferencias
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                      <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Referencia</span>
+                                      <div className="aspect-video rounded-xl overflow-hidden border border-zinc-200 bg-white">
+                                        {pairThumbnails[pair.id]?.thumb1 ? <img src={pairThumbnails[pair.id].thumb1} className="w-full h-full object-contain" alt="Ref" /> : <div className="w-full h-full flex items-center justify-center text-[8px] text-zinc-300">Sin área</div>}
+                                      </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Nueva Versión</span>
+                                      <div className="aspect-video rounded-xl overflow-hidden border border-zinc-200 bg-white">
+                                        {pairThumbnails[pair.id]?.thumb2 ? <img src={pairThumbnails[pair.id].thumb2} className="w-full h-full object-contain" alt="New" /> : <div className="w-full h-full flex items-center justify-center text-[8px] text-zinc-300">Sin área</div>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {pair.prompt && (
+                                    <div className="p-3 rounded-xl bg-white border border-zinc-100">
+                                      <p className="text-[10px] text-zinc-500 italic">&quot;{pair.prompt}&quot;</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            <div className="h-px bg-zinc-100 w-full" />
+                          </div>
+                        )}
+
+                        <div className="prose prose-zinc max-w-none prose-headings:text-zinc-900 prose-headings:font-black prose-p:text-zinc-700 markdown-report">
+                          <ReactMarkdown>{result.textualDifferences}</ReactMarkdown>
+                        </div>
                       </div>
                       <div className="relative mt-10 pt-8 border-t border-zinc-100 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center"><CheckCircle2 className="w-4 h-4 text-emerald-600" /></div>
                           <span className="text-[11px] font-black text-emerald-700 uppercase tracking-[0.2em]">Análisis Verificado</span>
                         </div>
-                        <span className="text-xs text-zinc-500 font-mono">{new Date().toLocaleTimeString()}</span>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] text-zinc-400 font-bold uppercase">Timestamp</span>
+                          <span className="text-xs text-zinc-500 font-mono">{new Date().toLocaleTimeString()}</span>
+                        </div>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-6">

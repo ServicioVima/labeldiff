@@ -8,11 +8,13 @@ export type CategorizedChangeType = 'added' | 'removed' | 'modified' | 'absent';
 
 export interface CategorizedChange {
   type: CategorizedChangeType;
-  label: string;
+  /** Etiqueta breve (compatibilidad) */
+  label?: string;
   /** Campo o área afectada (ej: "Fecha de vencimiento") */
   field?: string;
   oldValue?: string;
   newValue?: string;
+  /** Descripción del cambio */
   description?: string;
   /** Nombre del área de comparación cuando se usan pares */
   areaName?: string;
