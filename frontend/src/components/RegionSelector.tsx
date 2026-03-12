@@ -12,6 +12,27 @@ interface Props {
   isLoading?: boolean;
 }
 
+/** Convierte posición ratón a coordenadas normalizadas 0-1000 usando zoom y scroll.
+ * Fórmula: pos_relativa_imagen = (pos_ratón - inicio_vista + scroll) / zoom → normalizar a 0-1000. */
+function clientToNormalized(
+  clientX: number,
+  clientY: number,
+  rect: { left: number; top: number; width: number; height: number },
+  scrollLeft: number,
+  scrollTop: number,
+  zoom: number
+): { normX: number; normY: number } {
+  const contentX = clientX - rect.left + scrollLeft;
+  const contentY = clientY - rect.top + scrollTop;
+  const maxX = rect.width * zoom;
+  const maxY = rect.height * zoom;
+  const clampedX = Math.max(0, Math.min(contentX, maxX));
+  const clampedY = Math.max(0, Math.min(contentY, maxY));
+  const normX = Math.round((clampedX / maxX) * 1000);
+  const normY = Math.round((clampedY / maxY) * 1000);
+  return { normX, normY };
+}
+
 export const RegionSelector: React.FC<Props> = ({
   imageUrl,
   onRegionSelected,
@@ -23,7 +44,7 @@ export const RegionSelector: React.FC<Props> = ({
   isLoading = false,
 }) => {
   const [isDrawing, setIsDrawing] = useState(false);
-  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [startNorm, setStartNorm] = useState({ normX: 0, normY: 0 });
   const [currentRegion, setCurrentRegion] = useState<[number, number, number, number] | null>(initialRegion ?? null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -36,46 +57,54 @@ export const RegionSelector: React.FC<Props> = ({
     imageRectRef.current = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
   }, []);
 
+  // Actualizar rect cuando cambia zoom (DOM actualizado)
   useEffect(() => {
-    const t = setTimeout(() => {
-      updateImageRect();
-    }, 100);
-    return () => clearTimeout(t);
-  }, [isFullScreen, zoom, updateImageRect]);
+    const update = () => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(updateImageRect);
+      });
+    };
+    update();
+  }, [zoom, isFullScreen, updateImageRect]);
 
   useEffect(() => {
-    const onResize = () => {
-      setTimeout(updateImageRect, 100);
-    };
+    const t = setTimeout(updateImageRect, 100);
+    return () => clearTimeout(t);
+  }, [updateImageRect]);
+
+  useEffect(() => {
+    const onResize = () => setTimeout(updateImageRect, 100);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [updateImageRect]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!containerRef.current) return;
-    setTimeout(() => updateImageRect(), 0);
+  const getRectAndScroll = () => {
+    if (!containerRef.current) return null;
     const rect = imageRectRef.current ?? containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setStartPos({ x, y });
+    return { rect, scrollLeft: containerRef.current.scrollLeft, scrollTop: containerRef.current.scrollTop };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const data = getRectAndScroll();
+    if (!data) return;
+    const { rect, scrollLeft, scrollTop } = data;
+    const { normX, normY } = clientToNormalized(e.clientX, e.clientY, rect, scrollLeft, scrollTop, zoom);
+    setStartNorm({ normX, normY });
     setIsDrawing(true);
     setCurrentRegion(null);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDrawing || !containerRef.current) return;
-    const rect = imageRectRef.current ?? containerRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
-    const xmin = Math.min(startPos.x, x);
-    const xmax = Math.max(startPos.x, x);
-    const ymin = Math.min(startPos.y, y);
-    const ymax = Math.max(startPos.y, y);
-    const normXmin = Math.round((xmin / rect.width) * 1000);
-    const normXmax = Math.round((xmax / rect.width) * 1000);
-    const normYmin = Math.round((ymin / rect.height) * 1000);
-    const normYmax = Math.round((ymax / rect.height) * 1000);
-    setCurrentRegion([normYmin, normXmin, normYmax, normXmax]);
+    if (!isDrawing) return;
+    const data = getRectAndScroll();
+    if (!data) return;
+    const { rect, scrollLeft, scrollTop } = data;
+    const { normX, normY } = clientToNormalized(e.clientX, e.clientY, rect, scrollLeft, scrollTop, zoom);
+    const xmin = Math.min(startNorm.normX, normX);
+    const xmax = Math.max(startNorm.normX, normX);
+    const ymin = Math.min(startNorm.normY, normY);
+    const ymax = Math.max(startNorm.normY, normY);
+    setCurrentRegion([ymin, xmin, ymax, xmax]);
   };
 
   const handleMouseUp = () => {
@@ -97,9 +126,7 @@ export const RegionSelector: React.FC<Props> = ({
   };
 
   const getStyle = () => {
-    if (!currentRegion || !containerRef.current) return {};
-    const rect = imageRectRef.current;
-    if (!rect) return {};
+    if (!currentRegion) return {};
     const [ymin, xmin, ymax, xmax] = currentRegion;
     return {
       top: `${ymin / 10}%`,
@@ -111,6 +138,11 @@ export const RegionSelector: React.FC<Props> = ({
 
   const zoomIn = () => setZoom((z) => Math.min(5, z + 0.5));
   const zoomOut = () => setZoom((z) => Math.max(1, z - 0.5));
+
+  const handleConfirm = () => {
+    setZoom(1);
+    onConfirmSelection?.();
+  };
 
   const wrapperClass = isFullScreen
     ? 'fixed inset-0 z-[100] bg-zinc-900 flex flex-col'
@@ -150,28 +182,45 @@ export const RegionSelector: React.FC<Props> = ({
           </button>
         )}
         {onConfirmSelection && (
-          <button type="button" onClick={onConfirmSelection} className="px-6 py-3 rounded-2xl bg-emerald-600 text-white font-black text-sm hover:bg-emerald-700 transition-all shadow-xl flex items-center gap-2">
+          <button type="button" onClick={handleConfirm} className="px-6 py-3 rounded-2xl bg-emerald-600 text-white font-black text-sm hover:bg-emerald-700 transition-all shadow-xl flex items-center gap-2">
             <Check className="w-4 h-4" /> Confirmar Selección
           </button>
         )}
       </div>
       <div
         ref={containerRef}
-        className="relative flex-1 bg-zinc-100 rounded-xl overflow-hidden cursor-crosshair select-none min-h-0 transition-all duration-500"
+        className="relative flex-1 min-h-0 overflow-auto cursor-crosshair select-none bg-zinc-100 rounded-xl"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        <div className="w-full h-full flex items-center justify-center overflow-hidden" style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}>
-          <img src={imageUrl} alt="Region Selection" className="max-w-full max-h-full object-contain pointer-events-none transition-all duration-500" referrerPolicy="no-referrer" />
+        <div
+          className="relative flex items-center justify-center"
+          style={{
+            width: `${zoom * 100}%`,
+            height: `${zoom * 100}%`,
+            minWidth: '100%',
+            minHeight: '100%',
+          }}
+        >
+          <img
+            src={imageUrl}
+            alt="Region Selection"
+            className="max-w-full max-h-full w-full h-full object-contain pointer-events-none select-none"
+            style={{ maxWidth: '100%', maxHeight: '100%' }}
+            referrerPolicy="no-referrer"
+            draggable={false}
+          />
+          {currentRegion && (
+            <div
+              className="absolute border-2 border-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.3)] pointer-events-none"
+              style={getStyle()}
+            >
+              <div className="absolute -top-6 left-0 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-t-md whitespace-nowrap">Área de Enfoque</div>
+            </div>
+          )}
         </div>
-        <div className="absolute inset-0 bg-black/20 pointer-events-none" />
-        {currentRegion && (
-          <div className="absolute border-2 border-emerald-500 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.3)] pointer-events-none" style={getStyle()}>
-            <div className="absolute -top-6 left-0 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-t-md whitespace-nowrap">Área de Enfoque</div>
-          </div>
-        )}
       </div>
     </div>
   );
