@@ -6,14 +6,17 @@ import {
 } from 'lucide-react';
 
 import { cn } from './lib/utils';
-import type { FileData, LabelDefinition, ComparisonResult, CategorizedChangeType } from './types';
-import { setGeminiConfig, analyzeDifferences } from './lib/gemini';
+import type { FileData, LabelDefinition, ComparisonResult, CategorizedChangeType, ComparisonPair } from './types';
+import { setGeminiConfig, analyzeDifferences, cropBase64Image } from './lib/gemini';
 import { getConfig } from './lib/api';
 import { useAuth } from './contexts/AuthContext';
 import { LabelManager } from './components/LabelManager';
 import { FilePreview } from './components/FilePreview';
 import { ComparisonSlider } from './components/ComparisonSlider';
+import { CroppedComparisonSlider } from './components/CroppedComparisonSlider';
 import { RegionSelector } from './components/RegionSelector';
+import { BrandHero } from './components/BrandHero';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import ReactMarkdown from 'react-markdown';
 
 export default function App() {
@@ -44,6 +47,13 @@ export default function App() {
   const [selectedRegion2, setSelectedRegion2] = useState<[number, number, number, number] | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isFocusMode2, setIsFocusMode2] = useState(false);
+  const [comparisonPairs, setComparisonPairs] = useState<ComparisonPair[]>([]);
+  const [activePairId, setActivePairId] = useState<string | null>(null);
+  const [pairThumbnails, setPairThumbnails] = useState<Record<string, { thumb1?: string; thumb2?: string }>>({});
+  const [currentPage1, setCurrentPage1] = useState(1);
+  const [currentPage2, setCurrentPage2] = useState(1);
+  const [isChangingPage, setIsChangingPage] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem('labeldiff_categories', JSON.stringify(labels));
@@ -62,12 +72,15 @@ export default function App() {
     reader.onload = async () => {
       const base64 = reader.result as string;
       let previewUrl = URL.createObjectURL(file);
+      let totalPages = 1;
+      let arrayBuffer: ArrayBuffer | undefined;
       if (file.type === 'application/pdf') {
         try {
           const pdfjs = await import('pdfjs-dist');
           pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-          const arrayBuffer = await file.arrayBuffer();
-          const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+          arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjs.getDocument({ data: arrayBuffer.slice(0) }).promise;
+          totalPages = pdf.numPages;
           const page = await pdf.getPage(1);
           const scale = 3.5;
           const viewport = page.getViewport({ scale });
@@ -85,9 +98,9 @@ export default function App() {
           previewUrl = '';
         }
       }
-      const fileData: FileData = { name: file.name, type: file.type, base64, previewUrl };
-      if (side === 'left') setFile1(fileData);
-      else setFile2(fileData);
+      const fileData: FileData = { name: file.name, type: file.type, base64, previewUrl, totalPages, arrayBuffer };
+      if (side === 'left') { setFile1(fileData); setCurrentPage1(1); }
+      else { setFile2(fileData); setCurrentPage2(1); }
       setResult(null);
     };
     reader.readAsDataURL(file);
@@ -144,8 +157,9 @@ export default function App() {
         { base64: file1.base64, mimeType: file1.type },
         { base64: file2.base64, mimeType: file2.type },
         combinedPrompt,
-        selectedRegion ?? undefined,
-        selectedRegion2 ?? undefined,
+        comparisonPairs.length > 0 ? undefined : (selectedRegion ?? undefined),
+        comparisonPairs.length > 0 ? undefined : (selectedRegion2 ?? undefined),
+        comparisonPairs.length > 0 ? comparisonPairs : undefined,
       );
       setResult(analysis);
     } catch (err) {
@@ -161,6 +175,84 @@ export default function App() {
     }
   };
 
+  const handlePageChange = useCallback(async (side: 'left' | 'right', pageNum: number) => {
+    const file = side === 'left' ? file1 : file2;
+    if (!file?.arrayBuffer || file.type !== 'application/pdf') return;
+    setIsChangingPage(true);
+    setPageError(null);
+    try {
+      const pdfjs = await import('pdfjs-dist');
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+      const pdf = await pdfjs.getDocument({ data: file.arrayBuffer.slice(0) }).promise;
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 3.5 });
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      ctx.imageSmoothingEnabled = true;
+      (ctx as CanvasRenderingContext2D).imageSmoothingQuality = 'high';
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const newPreviewUrl = canvas.toDataURL('image/png');
+      const updated = { ...file, previewUrl: newPreviewUrl, base64: newPreviewUrl };
+      if (side === 'left') { setFile1(updated); setCurrentPage1(pageNum); }
+      else { setFile2(updated); setCurrentPage2(pageNum); }
+    } catch (err) {
+      setPageError(err instanceof Error ? err.message : 'Error al cambiar página');
+    } finally {
+      setIsChangingPage(false);
+    }
+  }, [file1, file2]);
+
+  const addComparisonPair = () => {
+    const newPair: ComparisonPair = {
+      id: crypto.randomUUID(),
+      name: `Área ${comparisonPairs.length + 1}`,
+      region1: null,
+      region2: null,
+      prompt: '',
+    };
+    setComparisonPairs((prev) => [...prev, newPair]);
+    setActivePairId(newPair.id);
+    setIsFocusMode(true);
+    setIsFocusMode2(false);
+  };
+
+  const removeComparisonPair = (id: string) => {
+    setComparisonPairs((prev) => prev.filter((p) => p.id !== id));
+    setPairThumbnails((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    if (activePairId === id) setActivePairId(null);
+  };
+
+  const renameComparisonPair = (id: string, name: string) => {
+    setComparisonPairs((prev) => prev.map((p) => (p.id === id ? { ...p, name } : p)));
+  };
+
+  const updatePairPrompt = (id: string, prompt: string) => {
+    setComparisonPairs((prev) => prev.map((p) => (p.id === id ? { ...p, prompt } : p)));
+  };
+
+  const updatePairRegion = useCallback(async (id: string, side: 1 | 2, region: [number, number, number, number] | null) => {
+    setComparisonPairs((prev) => prev.map((p) => (p.id === id ? { ...p, [side === 1 ? 'region1' : 'region2']: region } : p)));
+    if (region) {
+      const file = side === 1 ? file1 : file2;
+      if (file?.previewUrl) {
+        try {
+          const thumb = await cropBase64Image(file.previewUrl, region);
+          setPairThumbnails((prev) => ({
+            ...prev,
+            [id]: { ...prev[id], [side === 1 ? 'thumb1' : 'thumb2']: thumb },
+          }));
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, [file1, file2]);
+
+  const activePair = comparisonPairs.find((p) => p.id === activePairId);
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#F4F7F5] flex items-center justify-center">
@@ -170,7 +262,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F7F5] flex font-sans text-zinc-900 selection:bg-emerald-100 selection:text-emerald-900">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-[#F4F7F5] flex flex-col font-sans text-zinc-900 selection:bg-emerald-100 selection:text-emerald-900">
+        <BrandHero />
+        <div id="analyzer-tool" className="flex flex-1 min-h-0">
       <motion.aside
         initial={false}
         animate={{ width: isSidebarCollapsed ? 80 : 320 }}
@@ -307,19 +402,35 @@ export default function App() {
                 <input {...getLeftInput()} />
                 {isFocusMode && file1 ? (
                   <div className="h-full min-h-[600px]" onClick={(e) => e.stopPropagation()}>
-                    <RegionSelector imageUrl={file1.previewUrl} onRegionSelected={setSelectedRegion} onConfirmSelection={() => setIsFocusMode(false)} initialRegion={selectedRegion} />
+                    <RegionSelector
+                      imageUrl={file1.previewUrl}
+                      onRegionSelected={(r) => (activePairId ? updatePairRegion(activePairId, 1, r) : setSelectedRegion(r))}
+                      onConfirmSelection={() => setIsFocusMode(false)}
+                      initialRegion={activePair?.region1 ?? selectedRegion}
+                      totalPages={file1.totalPages}
+                      currentPage={currentPage1}
+                      onPageChange={(p) => handlePageChange('left', p)}
+                      isLoading={isChangingPage}
+                    />
                   </div>
                 ) : (
                   <>
-                    <FilePreview file={file1} label="Versión de Referencia" selectedRegion={selectedRegion} />
+                    <FilePreview
+                      file={file1}
+                      label="Versión de Referencia"
+                      selectedRegion={activePair?.region1 ?? selectedRegion}
+                      currentPage={currentPage1}
+                      onPageChange={(p) => handlePageChange('left', p)}
+                      isLoading={isChangingPage}
+                    />
                     {file1 && (
-                      <button onClick={(e) => { e.stopPropagation(); setFile1(null); setResult(null); setSelectedRegion(null); setIsFocusMode(false); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
+                      <button onClick={(e) => { e.stopPropagation(); setFile1(null); setResult(null); setSelectedRegion(null); setIsFocusMode(false); setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
                         <X className="w-5 h-5" />
                       </button>
                     )}
-                    {selectedRegion && !isFocusMode && (
+                    {(activePair?.region1 ?? selectedRegion) && !isFocusMode && (
                       <div className="absolute bottom-4 left-4 z-20 px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg flex items-center gap-2 shadow-lg">
-                        <Target className="w-3 h-3" /> ÁREA DE ENFOQUE ACTIVA
+                        <Target className="w-3 h-3" /> {activePair ? `ÁREA: ${activePair.name}` : 'ÁREA DE ENFOQUE ACTIVA'}
                       </div>
                     )}
                   </>
@@ -340,24 +451,42 @@ export default function App() {
                 <input {...getRightInput()} />
                 {isFocusMode2 && file2 ? (
                   <div className="h-full min-h-[600px]" onClick={(e) => e.stopPropagation()}>
-                    <RegionSelector imageUrl={file2.previewUrl} onRegionSelected={setSelectedRegion2} onConfirmSelection={() => setIsFocusMode2(false)} initialRegion={selectedRegion2} />
+                    <RegionSelector
+                      imageUrl={file2.previewUrl}
+                      onRegionSelected={(r) => (activePairId ? updatePairRegion(activePairId, 2, r) : setSelectedRegion2(r))}
+                      onConfirmSelection={() => setIsFocusMode2(false)}
+                      initialRegion={activePair?.region2 ?? selectedRegion2}
+                      totalPages={file2.totalPages}
+                      currentPage={currentPage2}
+                      onPageChange={(p) => handlePageChange('right', p)}
+                      isLoading={isChangingPage}
+                    />
                   </div>
                 ) : (
                   <>
-                    <FilePreview file={file2} label="Nueva Versión" selectedRegion={selectedRegion2} differences={result?.visualDifferences} />
+                    <FilePreview
+                      file={file2}
+                      label="Nueva Versión"
+                      selectedRegion={activePair?.region2 ?? selectedRegion2}
+                      differences={result?.visualDifferences}
+                      currentPage={currentPage2}
+                      onPageChange={(p) => handlePageChange('right', p)}
+                      isLoading={isChangingPage}
+                      showDownload
+                    />
                     {file2 && (
                       <div className="absolute top-4 left-4 z-20 px-3 py-1.5 bg-zinc-800 text-white text-[10px] font-bold rounded-lg shadow-lg tracking-wider">
                         VERSIÓN PARA FÁBRICA
                       </div>
                     )}
                     {file2 && (
-                      <button onClick={(e) => { e.stopPropagation(); setFile2(null); setResult(null); setSelectedRegion2(null); setIsFocusMode2(false); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
+                      <button onClick={(e) => { e.stopPropagation(); setFile2(null); setResult(null); setSelectedRegion2(null); setIsFocusMode2(false); setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="absolute top-4 right-4 z-20 p-2 bg-white/90 backdrop-blur-sm rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-all shadow-lg border border-zinc-200" title="Quitar archivo">
                         <X className="w-5 h-5" />
                       </button>
                     )}
-                    {selectedRegion2 && !isFocusMode2 && (
+                    {(activePair?.region2 ?? selectedRegion2) && !isFocusMode2 && (
                       <div className="absolute bottom-4 left-4 z-20 px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg flex items-center gap-2 shadow-lg">
-                        <Target className="w-3 h-3" /> ENFOQUE ESPECÍFICO ACTIVO
+                        <Target className="w-3 h-3" /> {activePair ? `ÁREA: ${activePair.name}` : 'ENFOQUE ESPECÍFICO ACTIVO'}
                       </div>
                     )}
                   </>
@@ -374,6 +503,71 @@ export default function App() {
               </div>
             </motion.div>
           </div>
+
+          {pageError && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-700 text-sm">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              {pageError}
+              <button type="button" onClick={() => setPageError(null)} className="ml-auto p-1 hover:bg-red-100 rounded"><X className="w-4 h-4" /></button>
+            </motion.div>
+          )}
+
+          {file1 && file2 && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-6 md:p-8 bg-white rounded-[2rem] border border-zinc-200 shadow-lg">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center"><Target className="w-5 h-5 text-emerald-600" /></div>
+                  <div>
+                    <h3 className="text-lg font-black text-zinc-900">Áreas de comparación</h3>
+                    <p className="text-xs text-zinc-500">Define zonas específicas para un análisis por áreas.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {comparisonPairs.length > 0 && (
+                    <button type="button" onClick={() => { setComparisonPairs([]); setPairThumbnails({}); setActivePairId(null); }} className="px-4 py-2 bg-zinc-100 text-zinc-600 rounded-xl text-sm font-bold hover:bg-zinc-200 flex items-center gap-2">
+                      <Trash2 className="w-4 h-4" /> Limpiar todo
+                    </button>
+                  )}
+                  <button type="button" onClick={addComparisonPair} className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 flex items-center gap-2 shadow-lg">
+                    <Sparkles className="w-4 h-4" /> Nueva área
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {comparisonPairs.map((pair) => (
+                  <div key={pair.id} className={cn("p-4 rounded-2xl border transition-all", activePairId === pair.id ? "bg-emerald-50/50 border-emerald-200 ring-2 ring-emerald-500/20" : "bg-zinc-50/50 border-zinc-100")}>
+                    <input type="text" value={pair.name} onChange={(e) => renameComparisonPair(pair.id, e.target.value)} className="w-full bg-transparent border-none p-0 font-bold text-zinc-900 text-sm focus:ring-0 mb-2" placeholder="Nombre del área" />
+                    <textarea value={pair.prompt ?? ''} onChange={(e) => updatePairPrompt(pair.id, e.target.value)} placeholder="Instrucciones opcionales..." className="w-full text-[10px] p-2 rounded-lg bg-white border border-zinc-100 focus:border-emerald-500 resize-none h-14 mb-3" />
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div>
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase block mb-1">Ref. (v1)</span>
+                        <div onClick={() => { setActivePairId(pair.id); setIsFocusMode(true); setIsFocusMode2(false); }} className={cn("aspect-video rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer", pair.region1 ? "bg-emerald-100 border-emerald-300" : "bg-white border-zinc-200 hover:border-emerald-300")}>
+                          {pairThumbnails[pair.id]?.thumb1 ? <img src={pairThumbnails[pair.id].thumb1} alt="" className="w-full h-full object-cover rounded-md" /> : pair.region1 ? <Target className="w-5 h-5 text-emerald-600" /> : <span className="text-[8px] text-zinc-400 font-bold">Definir</span>}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-zinc-400 uppercase block mb-1">Nueva (v2)</span>
+                        <div onClick={() => { setActivePairId(pair.id); setIsFocusMode(false); setIsFocusMode2(true); }} className={cn("aspect-video rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer", pair.region2 ? "bg-emerald-100 border-emerald-300" : "bg-white border-zinc-200 hover:border-emerald-300")}>
+                          {pairThumbnails[pair.id]?.thumb2 ? <img src={pairThumbnails[pair.id].thumb2} alt="" className="w-full h-full object-cover rounded-md" /> : pair.region2 ? <Target className="w-5 h-5 text-emerald-600" /> : <span className="text-[8px] text-zinc-400 font-bold">Definir</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setActivePairId(pair.id)} className={cn("flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase", activePairId === pair.id ? "bg-emerald-600 text-white" : "bg-zinc-200 text-zinc-600 hover:bg-zinc-300")}>{activePairId === pair.id ? 'Editando' : 'Seleccionar'}</button>
+                      <button type="button" onClick={() => removeComparisonPair(pair.id)} className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                ))}
+                {comparisonPairs.length === 0 && (
+                  <div className="col-span-full py-8 border-2 border-dashed border-zinc-100 rounded-2xl flex flex-col items-center justify-center text-zinc-400 bg-zinc-50/30">
+                    <Target className="w-8 h-8 opacity-30 mb-2" />
+                    <p className="text-sm font-bold text-zinc-500">No hay áreas definidas</p>
+                    <p className="text-xs mt-0.5">Usa &quot;Nueva área&quot; para comparar zonas específicas.</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
 
           <AnimatePresence mode="wait">
             {error && (
@@ -394,9 +588,22 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Modo Cortina (Antes/Después)</span>
+                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
+                          {comparisonPairs.length > 0 ? 'Comparación por áreas' : 'Modo Cortina (Antes/Después)'}
+                        </span>
                       </div>
-                      <ComparisonSlider leftImage={file1?.previewUrl ?? ''} rightImage={file2?.previewUrl ?? ''} />
+                      {comparisonPairs.length > 0 ? (
+                        <div className="space-y-6">
+                          {comparisonPairs.map((pair) => (
+                            <div key={pair.id} className="space-y-2">
+                              <p className="text-xs font-bold text-zinc-600">{pair.name}</p>
+                              <CroppedComparisonSlider leftImage={file1?.previewUrl ?? ''} rightImage={file2?.previewUrl ?? ''} region1={pair.region1} region2={pair.region2} name={pair.name} />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <ComparisonSlider leftImage={file1?.previewUrl ?? ''} rightImage={file2?.previewUrl ?? ''} />
+                      )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-2">
@@ -404,14 +611,14 @@ export default function App() {
                           <div className="w-1 h-4 bg-zinc-400 rounded-full" />
                           <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Versión de Referencia</span>
                         </div>
-                        <FilePreview file={file1} label="Versión de Referencia" selectedRegion={selectedRegion} />
+                        <FilePreview file={file1} label="Versión de Referencia" selectedRegion={activePair?.region1 ?? selectedRegion} currentPage={currentPage1} onPageChange={(p) => handlePageChange('left', p)} isLoading={isChangingPage} />
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="w-1 h-4 bg-emerald-500 rounded-full" />
                           <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Nueva Versión (con diferencias)</span>
                         </div>
-                        <FilePreview file={file2} label="Versión para fábrica" differences={result.visualDifferences} selectedRegion={selectedRegion2} />
+                        <FilePreview file={file2} label="Versión para fábrica" differences={result.visualDifferences} selectedRegion={activePair?.region2 ?? selectedRegion2} currentPage={currentPage2} onPageChange={(p) => handlePageChange('right', p)} isLoading={isChangingPage} showDownload />
                       </div>
                     </div>
                   </div>
@@ -426,33 +633,76 @@ export default function App() {
                       </button>
                     </div>
                     <div className="bg-white rounded-[2.5rem] border border-zinc-200 p-10 shadow-2xl shadow-zinc-200/40 relative overflow-hidden group min-h-[500px] flex flex-col">
-                      {result.categorizedChanges && result.categorizedChanges.length > 0 && (
-                        <div className="mb-6 space-y-3">
-                          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Cambios por categoría</p>
-                          <div className="flex flex-wrap gap-2">
-                            {(['added', 'removed', 'modified', 'absent'] as CategorizedChangeType[]).map((t) => {
-                              const items = result.categorizedChanges!.filter((c) => c.type === t);
-                              if (items.length === 0) return null;
-                              const config = { added: { bg: 'bg-emerald-100', text: 'text-emerald-800', icon: Plus }, removed: { bg: 'bg-red-100', text: 'text-red-800', icon: Minus }, modified: { bg: 'bg-amber-100', text: 'text-amber-800', icon: Pencil }, absent: { bg: 'bg-violet-100', text: 'text-violet-800', icon: AlertTriangle } }[t];
-                              const Icon = config.icon;
-                              const labels = { added: 'Nuevos', removed: 'Eliminados', modified: 'Modificados', absent: 'Ausentes' };
-                              return (
-                                <div key={t} className={cn('rounded-xl border p-3 min-w-[140px]', config.bg, 'border-transparent')}>
-                                  <div className="flex items-center gap-2 mb-1.5">
-                                    <Icon className={cn('w-4 h-4', config.text)} />
-                                    <span className={cn('text-xs font-bold uppercase tracking-wider', config.text)}>{labels[t]}</span>
-                                  </div>
-                                  <ul className="space-y-1">
-                                    {items.map((c, i) => (
-                                      <li key={i} className={cn('text-xs leading-snug', config.text)}>{c.label}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              );
-                            })}
+                      {result.categorizedChanges && result.categorizedChanges.length > 0 && (() => {
+                        const withArea = result.categorizedChanges!.filter((c) => c.areaName);
+                        const withoutArea = result.categorizedChanges!.filter((c) => !c.areaName);
+                        const areas = [...new Set(withArea.map((c) => c.areaName!))];
+                        return (
+                          <div className="mb-6 space-y-6">
+                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Cambios por categoría</p>
+                            {areas.length > 0 && (
+                              <div className="space-y-4">
+                                {areas.map((area) => {
+                                  const items = withArea.filter((c) => c.areaName === area);
+                                  return (
+                                    <div key={area} className="rounded-2xl border border-zinc-100 p-4 bg-zinc-50/50">
+                                      <p className="text-xs font-black text-zinc-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <Target className="w-3.5 h-3.5" /> {area}
+                                      </p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {(['added', 'removed', 'modified', 'absent'] as CategorizedChangeType[]).map((t) => {
+                                          const byType = items.filter((c) => c.type === t);
+                                          if (byType.length === 0) return null;
+                                          const config = { added: { bg: 'bg-emerald-100', text: 'text-emerald-800', icon: Plus }, removed: { bg: 'bg-red-100', text: 'text-red-800', icon: Minus }, modified: { bg: 'bg-amber-100', text: 'text-amber-800', icon: Pencil }, absent: { bg: 'bg-violet-100', text: 'text-violet-800', icon: AlertTriangle } }[t];
+                                          const Icon = config.icon;
+                                          const labels = { added: 'Nuevos', removed: 'Eliminados', modified: 'Modificados', absent: 'Ausentes' };
+                                          return (
+                                            <div key={t} className={cn('rounded-xl border p-3 min-w-[120px]', config.bg, 'border-transparent')}>
+                                              <div className="flex items-center gap-2 mb-1.5">
+                                                <Icon className={cn('w-4 h-4', config.text)} />
+                                                <span className={cn('text-xs font-bold uppercase tracking-wider', config.text)}>{labels[t]}</span>
+                                              </div>
+                                              <ul className="space-y-1">
+                                                {byType.map((c, i) => (
+                                                  <li key={i} className={cn('text-xs leading-snug', config.text)}>{c.label}</li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {withoutArea.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {(['added', 'removed', 'modified', 'absent'] as CategorizedChangeType[]).map((t) => {
+                                  const items = withoutArea.filter((c) => c.type === t);
+                                  if (items.length === 0) return null;
+                                  const config = { added: { bg: 'bg-emerald-100', text: 'text-emerald-800', icon: Plus }, removed: { bg: 'bg-red-100', text: 'text-red-800', icon: Minus }, modified: { bg: 'bg-amber-100', text: 'text-amber-800', icon: Pencil }, absent: { bg: 'bg-violet-100', text: 'text-violet-800', icon: AlertTriangle } }[t];
+                                  const Icon = config.icon;
+                                  const labels = { added: 'Nuevos', removed: 'Eliminados', modified: 'Modificados', absent: 'Ausentes' };
+                                  return (
+                                    <div key={t} className={cn('rounded-xl border p-3 min-w-[140px]', config.bg, 'border-transparent')}>
+                                      <div className="flex items-center gap-2 mb-1.5">
+                                        <Icon className={cn('w-4 h-4', config.text)} />
+                                        <span className={cn('text-xs font-bold uppercase tracking-wider', config.text)}>{labels[t]}</span>
+                                      </div>
+                                      <ul className="space-y-1">
+                                        {items.map((c, i) => (
+                                          <li key={i} className={cn('text-xs leading-snug', config.text)}>{c.label}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                       <div className="relative flex-1 prose prose-zinc max-w-none markdown-report">
                         <ReactMarkdown>{result.textualDifferences}</ReactMarkdown>
                       </div>
@@ -503,6 +753,8 @@ export default function App() {
           )}
         </div>
       </main>
-    </div>
+        </div>
+      </div>
+    </ErrorBoundary>
   );
 }

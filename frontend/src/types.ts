@@ -9,6 +9,13 @@ export type CategorizedChangeType = 'added' | 'removed' | 'modified' | 'absent';
 export interface CategorizedChange {
   type: CategorizedChangeType;
   label: string;
+  /** Campo o área afectada (ej: "Fecha de vencimiento") */
+  field?: string;
+  oldValue?: string;
+  newValue?: string;
+  description?: string;
+  /** Nombre del área de comparación cuando se usan pares */
+  areaName?: string;
 }
 
 export interface ComparisonResult {
@@ -16,8 +23,17 @@ export interface ComparisonResult {
   visualDifferences: {
     box_2d: [number, number, number, number];
     label: string;
+    areaName?: string;
   }[];
   categorizedChanges?: CategorizedChange[];
+}
+
+export interface ComparisonPair {
+  id: string;
+  name: string;
+  region1: [number, number, number, number] | null;
+  region2: [number, number, number, number] | null;
+  prompt?: string;
 }
 
 export interface FileData {
@@ -25,6 +41,8 @@ export interface FileData {
   type: string;
   base64: string;
   previewUrl: string;
+  totalPages?: number;
+  arrayBuffer?: ArrayBuffer;
 }
 
 export interface CatalogItem {

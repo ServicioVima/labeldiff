@@ -1,15 +1,28 @@
 import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import type { FileData } from '../types';
-import { FileText, Image as ImageIcon, Download } from 'lucide-react';
+import { FileText, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 interface Props {
   file: FileData | null;
   label: string;
-  differences?: { box_2d: [number, number, number, number]; label: string }[];
+  differences?: { box_2d: [number, number, number, number]; label: string; areaName?: string }[];
   selectedRegion?: [number, number, number, number] | null;
+  currentPage?: number;
+  onPageChange?: (page: number) => void;
+  isLoading?: boolean;
+  showDownload?: boolean;
 }
 
-export const FilePreview: React.FC<Props> = ({ file, label, differences, selectedRegion }) => {
+export const FilePreview: React.FC<Props> = ({
+  file,
+  label,
+  differences,
+  selectedRegion,
+  currentPage = 1,
+  onPageChange,
+  isLoading = false,
+  showDownload: showDownloadProp,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState<{ w: number; h: number } | null>(null);
@@ -18,7 +31,7 @@ export const FilePreview: React.FC<Props> = ({ file, label, differences, selecte
 
   const hasZoom = Boolean(selectedRegion && !differences);
   const showCanvas = Boolean(differences);
-  const showDownloadButton = Boolean(differences || selectedRegion);
+  const showDownloadButton = showDownloadProp ?? Boolean(differences || selectedRegion);
 
   const handleDownload = useCallback(() => {
     if (!file?.previewUrl) return;
@@ -183,6 +196,19 @@ export const FilePreview: React.FC<Props> = ({ file, label, differences, selecte
       <div className="flex items-center justify-between px-1">
         <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{label}</span>
         <div className="flex items-center gap-2">
+          {file.totalPages != null && file.totalPages > 1 && onPageChange && (
+            <div className="flex items-center gap-0.5 bg-zinc-100 rounded-lg px-1.5 py-0.5 border border-zinc-200">
+              <button type="button" onClick={(e) => { e.stopPropagation(); onPageChange(Math.max(1, currentPage - 1)); }} disabled={currentPage === 1 || isLoading} className="p-0.5 text-zinc-500 hover:text-zinc-900 disabled:opacity-30 transition-colors">
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <span className="text-[10px] font-bold text-zinc-600 min-w-[32px] text-center">
+                {isLoading ? <Loader2 className="w-3 h-3 animate-spin inline text-emerald-600" /> : `${currentPage}/${file.totalPages}`}
+              </span>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onPageChange(Math.min(file.totalPages!, currentPage + 1)); }} disabled={currentPage === file.totalPages || isLoading} className="p-0.5 text-zinc-500 hover:text-zinc-900 disabled:opacity-30 transition-colors">
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+          )}
           {showDownloadButton && (
             <button type="button" onClick={handleDownload} className="p-2 rounded-xl bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:text-emerald-600 transition-all shadow-sm" title="Descargar imagen">
               <Download className="w-4 h-4" />

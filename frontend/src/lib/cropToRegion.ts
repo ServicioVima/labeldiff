@@ -119,3 +119,10 @@ export async function cropFileToRegion(
   }
   return { base64, mimeType };
 }
+
+/** Recorta una imagen por región y devuelve la URL en base64 (para miniaturas). Solo imágenes. */
+export async function cropBase64Image(base64: string, region: Region): Promise<string> {
+  const mime = base64.startsWith("data:") ? (base64.match(/data:([^;]+)/)?.[1] ?? "image/png") : "image/png";
+  const res = await cropImageToRegion(base64, mime, region);
+  return res.base64;
+}

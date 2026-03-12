@@ -1,14 +1,27 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Crosshair, Trash2, Maximize2, Minimize2, Check } from 'lucide-react';
+import { Crosshair, Trash2, Maximize2, Minimize2, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 interface Props {
   imageUrl: string;
   onRegionSelected: (region: [number, number, number, number] | null) => void;
   onConfirmSelection?: () => void;
   initialRegion?: [number, number, number, number] | null;
+  totalPages?: number;
+  currentPage?: number;
+  onPageChange?: (page: number) => void;
+  isLoading?: boolean;
 }
 
-export const RegionSelector: React.FC<Props> = ({ imageUrl, onRegionSelected, onConfirmSelection, initialRegion }) => {
+export const RegionSelector: React.FC<Props> = ({
+  imageUrl,
+  onRegionSelected,
+  onConfirmSelection,
+  initialRegion,
+  totalPages,
+  currentPage = 1,
+  onPageChange,
+  isLoading = false,
+}) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [currentRegion, setCurrentRegion] = useState<[number, number, number, number] | null>(initialRegion ?? null);
@@ -110,6 +123,19 @@ export const RegionSelector: React.FC<Props> = ({ imageUrl, onRegionSelected, on
           <Crosshair className="w-3 h-3 text-emerald-400" />
           DIBUJA UN ÁREA PARA ENFOCAR EL ANÁLISIS
         </div>
+        {totalPages != null && totalPages > 1 && onPageChange && (
+          <div className="flex items-center gap-0.5 bg-white/90 rounded-lg px-2 py-1 border border-white/20 shadow-lg">
+            <button type="button" onClick={(e) => { e.stopPropagation(); onPageChange(Math.max(1, currentPage - 1)); }} disabled={currentPage === 1 || isLoading} className="p-1 text-zinc-600 hover:text-zinc-900 disabled:opacity-30 transition-colors">
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[10px] font-bold text-zinc-700 min-w-[36px] text-center">
+              {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-500 inline" /> : `${currentPage}/${totalPages}`}
+            </span>
+            <button type="button" onClick={(e) => { e.stopPropagation(); onPageChange(Math.min(totalPages, currentPage + 1)); }} disabled={currentPage === totalPages || isLoading} className="p-1 text-zinc-600 hover:text-zinc-900 disabled:opacity-30 transition-colors">
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         <button type="button" onClick={() => setIsFullScreen(!isFullScreen)} className="p-2 rounded-lg bg-white/90 text-zinc-700 hover:bg-white transition-colors shadow-lg border border-white/20" title={isFullScreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
           {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
