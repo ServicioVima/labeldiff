@@ -479,11 +479,10 @@ export default function App() {
                       file={file2}
                       label="Nueva Versión"
                       selectedRegion={activePair?.region2 ?? selectedRegion2}
-                      differences={result?.visualDifferences}
                       currentPage={currentPage2}
                       onPageChange={(p) => handlePageChange('right', p)}
                       isLoading={isChangingPage}
-                      showDownload
+                      showDownload={false}
                     />
                     {file2 && !isFocusMode2 && (
                       <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
@@ -605,63 +604,80 @@ export default function App() {
               <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} className="space-y-12">
                 <div className="h-px bg-zinc-200 w-full" />
                 <div className="space-y-12">
-                  {/* Análisis Visual Detallado - como referencia */}
+                  {/* Análisis Visual Detallado: una sección por área cuando hay áreas; si no, vista completa */}
                   <div className="space-y-8">
                     <div className="flex items-center justify-between">
                       <div className="space-y-1">
                         <h3 className="text-3xl font-black text-zinc-900">Análisis Visual Detallado</h3>
-                        <p className="text-sm text-zinc-500">Inspección profunda de las discrepancias detectadas.</p>
+                        <p className="text-sm text-zinc-500">
+                          {comparisonPairs.length > 0
+                            ? 'Una tarjeta por área con referencia, nueva versión con marcas y descarga.'
+                            : 'Inspección profunda de las discrepancias detectadas.'}
+                        </p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1 h-4 bg-zinc-400 rounded-full" />
-                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Versión de Referencia (v1)</span>
-                        </div>
-                        <div className="bg-white rounded-[2.5rem] border border-zinc-200 p-4 shadow-xl">
-                          <FilePreview file={file1} label="Referencia Original" currentPage={currentPage1} onPageChange={(p) => handlePageChange('left', p)} isLoading={isChangingPage} showDownload />
-                        </div>
-                      </div>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Nueva Versión Detectada (v2)</span>
-                          </div>
-                          <span className="px-2 py-1 bg-emerald-600 text-white text-[9px] font-black rounded-md uppercase">Diferencias Marcadas</span>
-                        </div>
-                        <div className="bg-white rounded-[2.5rem] border border-emerald-100 p-4 shadow-xl ring-4 ring-emerald-500/5">
-                          <FilePreview file={file2} label="Nueva Versión con Marcas" differences={result.visualDifferences} currentPage={currentPage2} onPageChange={(p) => handlePageChange('right', p)} isLoading={isChangingPage} showDownload />
-                        </div>
-                      </div>
-                    </div>
-                    {/* Por área: una imagen marcada por área cuando hay áreas definidas */}
-                    {comparisonPairs.length > 0 && result.visualDifferences.length > 0 && (
-                      <div className="space-y-6 bg-emerald-50/50 p-8 rounded-[3rem] border border-emerald-100">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                          <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Nueva versión con marcas por área</span>
-                        </div>
-                        <p className="text-sm text-zinc-600">Cada recorte muestra solo las diferencias de esa zona. Descarga la imagen marcada por área.</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {comparisonPairs.filter((p) => p.region2 && pairThumbnails[p.id]?.thumb2).map((pair) => {
-                            const areaDiffs = result.visualDifferences.filter((d) => d.areaName === pair.name);
-                            const differencesInCrop = areaDiffs.map((d) => ({
-                              box_2d: fullImageBoxToCropBox(d.box_2d, pair.region2!),
-                              label: d.label,
-                            }));
-                            return (
-                              <div key={pair.id} className="bg-white rounded-2xl border border-zinc-200 p-4 shadow-lg">
-                                <AreaMarkedPreview
-                                  imageUrl={pairThumbnails[pair.id].thumb2!}
-                                  areaName={pair.name}
-                                  differences={differencesInCrop}
-                                  showDownload
-                                />
+                    {comparisonPairs.length > 0 ? (
+                      <div className="space-y-8">
+                        {comparisonPairs.filter((p) => p.region2 && pairThumbnails[p.id]?.thumb2).map((pair) => {
+                          const areaDiffs = result.visualDifferences.filter((d) => d.areaName === pair.name);
+                          const differencesInCrop = areaDiffs.map((d) => ({
+                            box_2d: fullImageBoxToCropBox(d.box_2d, pair.region2!),
+                            label: d.label,
+                          }));
+                          return (
+                            <div key={pair.id} className="bg-white rounded-[2.5rem] border border-zinc-200 p-6 shadow-xl overflow-hidden">
+                              <div className="flex items-center gap-2 mb-4">
+                                <Target className="w-5 h-5 text-emerald-600" />
+                                <h4 className="text-lg font-black text-zinc-900 uppercase tracking-tight">{pair.name}</h4>
+                                {areaDiffs.length > 0 && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-black uppercase">
+                                    {areaDiffs.length} diferencia{areaDiffs.length !== 1 ? 's' : ''}
+                                  </span>
+                                )}
                               </div>
-                            );
-                          })}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                  <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Referencia (v1)</span>
+                                  <div className="aspect-video rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50">
+                                    {pairThumbnails[pair.id]?.thumb1 ? <img src={pairThumbnails[pair.id].thumb1} className="w-full h-full object-contain" alt={`Ref ${pair.name}`} /> : <div className="w-full h-full flex items-center justify-center text-xs text-zinc-400">Sin área</div>}
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Nueva versión con marcas (v2)</span>
+                                  <AreaMarkedPreview
+                                    imageUrl={pairThumbnails[pair.id].thumb2!}
+                                    areaName={pair.name}
+                                    differences={differencesInCrop}
+                                    showDownload
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1 h-4 bg-zinc-400 rounded-full" />
+                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Versión de Referencia (v1)</span>
+                          </div>
+                          <div className="bg-white rounded-[2.5rem] border border-zinc-200 p-4 shadow-xl">
+                            <FilePreview file={file1} label="Referencia Original" currentPage={currentPage1} onPageChange={(p) => handlePageChange('left', p)} isLoading={isChangingPage} showDownload />
+                          </div>
+                        </div>
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-1 h-4 bg-emerald-500 rounded-full" />
+                              <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Nueva Versión Detectada (v2)</span>
+                            </div>
+                            <span className="px-2 py-1 bg-emerald-600 text-white text-[9px] font-black rounded-md uppercase">Diferencias Marcadas</span>
+                          </div>
+                          <div className="bg-white rounded-[2.5rem] border border-emerald-100 p-4 shadow-xl ring-4 ring-emerald-500/5">
+                            <FilePreview file={file2} label="Nueva Versión con Marcas" differences={result.visualDifferences} currentPage={currentPage2} onPageChange={(p) => handlePageChange('right', p)} isLoading={isChangingPage} showDownload />
+                          </div>
                         </div>
                       </div>
                     )}
