@@ -15,7 +15,6 @@ import { FilePreview } from './components/FilePreview';
 import { ComparisonSlider } from './components/ComparisonSlider';
 import { CroppedComparisonSlider } from './components/CroppedComparisonSlider';
 import { RegionSelector } from './components/RegionSelector';
-import { BrandHero } from './components/BrandHero';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import ReactMarkdown from 'react-markdown';
 
@@ -264,7 +263,6 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-[#F4F7F5] flex flex-col font-sans text-zinc-900 selection:bg-emerald-100 selection:text-emerald-900">
-        <BrandHero />
         <div id="analyzer-tool" className="flex flex-1 min-h-0">
       <motion.aside
         initial={false}
