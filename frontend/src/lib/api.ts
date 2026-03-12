@@ -76,3 +76,14 @@ export async function listCatalog(params?: { name?: string; version?: string; cl
   const query = q.toString();
   return apiGet<import('../types').CatalogItem[]>(`/api/catalog${query ? `?${query}` : ''}`);
 }
+
+export interface SendReportEmailBody {
+  language: 'es' | 'en';
+  subject: string;
+  htmlBody: string;
+  attachments: { filename: string; contentBase64: string; contentId: string | null }[];
+}
+
+export async function sendReportEmail(body: SendReportEmailBody): Promise<{ ok: boolean; message: string }> {
+  return apiPost<{ ok: boolean; message: string }>('/api/email/send-report', body);
+}

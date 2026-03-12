@@ -2,13 +2,14 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Upload, Search, AlertCircle, CheckCircle2, Layers, ArrowRightLeft, Loader2, FileText, Sparkles, Zap, Download, History, Info, ChevronLeft, ChevronRight, Menu, X, Crosshair, Target, Trash2, LogIn, User, Plus, Minus, Pencil, AlertTriangle,
+  Upload, Search, AlertCircle, CheckCircle2, Layers, ArrowRightLeft, Loader2, FileText, Sparkles, Zap, Download, History, Info, ChevronLeft, ChevronRight, Menu, X, Crosshair, Target, Trash2, LogIn, User, Plus, Minus, Pencil, AlertTriangle, Mail,
 } from 'lucide-react';
 
 import { cn, fullImageBoxToCropBox } from './lib/utils';
 import type { FileData, LabelDefinition, ComparisonResult, CategorizedChangeType, ComparisonPair } from './types';
 import { setGeminiConfig, analyzeDifferences, cropBase64Image } from './lib/gemini';
-import { getConfig } from './lib/api';
+import { getConfig, sendReportEmail } from './lib/api';
+import { buildEmailPayload } from './lib/emailReport';
 import { useAuth } from './contexts/AuthContext';
 import { LabelManager } from './components/LabelManager';
 import { FilePreview } from './components/FilePreview';
@@ -54,6 +55,9 @@ export default function App() {
   const [currentPage2, setCurrentPage2] = useState(1);
   const [isChangingPage, setIsChangingPage] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [emailLanguage, setEmailLanguage] = useState<'es' | 'en'>('es');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailMessage, setEmailMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     localStorage.setItem('labeldiff_categories', JSON.stringify(labels));
@@ -122,6 +126,35 @@ export default function App() {
     a.download = `reporte_diferencias_${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleSendReportEmail = async () => {
+    if (!result || !user?.email) return;
+    setEmailMessage(null);
+    setEmailSending(true);
+    try {
+      const payload = await buildEmailPayload({
+        language: emailLanguage,
+        result,
+        file1,
+        file2,
+        comparisonPairs,
+        pairThumbnails,
+        fullImageBoxToCropBox,
+      });
+      await sendReportEmail({
+        language: emailLanguage,
+        subject: payload.subject,
+        htmlBody: payload.htmlBody,
+        attachments: payload.attachments,
+      });
+      setEmailMessage({ type: 'success', text: emailLanguage === 'es' ? 'Correo enviado a tu dirección. Revisa la bandeja de entrada.' : 'Email sent to your address. Check your inbox.' });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setEmailMessage({ type: 'error', text: msg });
+    } finally {
+      setEmailSending(false);
+    }
   };
 
   const downloadImage = () => {
@@ -699,6 +732,71 @@ export default function App() {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* Enviar borrador por correo al usuario logueado */}
+                  <div className="rounded-[2rem] border border-zinc-200 bg-gradient-to-br from-zinc-50 to-white p-6 shadow-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-black text-zinc-900 flex items-center gap-2">
+                          <Mail className="w-5 h-5 text-emerald-600" />
+                          {emailLanguage === 'es' ? 'Recibir borrador por correo' : 'Get draft by email'}
+                        </h3>
+                        <p className="text-sm text-zinc-500 mt-1">
+                          {emailLanguage === 'es'
+                            ? 'Se enviará un resumen formal al proveedor (a tu correo) con las imágenes de referencia y marcadas en el cuerpo y como adjuntos.'
+                            : 'A formal summary for the supplier will be sent to your email, with reference and marked images in the body and as attachments.'}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <div className="flex rounded-xl border border-zinc-200 bg-white p-1 shadow-sm" role="group" aria-label={emailLanguage === 'es' ? 'Idioma del correo' : 'Email language'}>
+                          <button
+                            type="button"
+                            onClick={() => setEmailLanguage('es')}
+                            className={cn(
+                              'px-4 py-2 rounded-lg text-sm font-bold transition-all',
+                              emailLanguage === 'es' ? 'bg-emerald-600 text-white shadow' : 'text-zinc-600 hover:bg-zinc-100'
+                            )}
+                          >
+                            Español
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEmailLanguage('en')}
+                            className={cn(
+                              'px-4 py-2 rounded-lg text-sm font-bold transition-all',
+                              emailLanguage === 'en' ? 'bg-emerald-600 text-white shadow' : 'text-zinc-600 hover:bg-zinc-100'
+                            )}
+                          >
+                            English
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSendReportEmail}
+                          disabled={emailSending || !user?.email}
+                          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all"
+                        >
+                          {emailSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                          {emailSending ? (emailLanguage === 'es' ? 'Enviando…' : 'Sending…') : (emailLanguage === 'es' ? 'Enviar resumen por correo' : 'Send summary by email')}
+                        </button>
+                      </div>
+                    </div>
+                    {emailMessage && (
+                      <div className={cn(
+                        'mt-4 p-3 rounded-xl flex items-center gap-3 text-sm',
+                        emailMessage.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-red-50 text-red-800 border border-red-100'
+                      )}>
+                        {emailMessage.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
+                        <span>{emailMessage.text}</span>
+                        <button type="button" onClick={() => setEmailMessage(null)} className="ml-auto p-1 hover:opacity-70" aria-label="Cerrar"><X className="w-4 h-4" /></button>
+                      </div>
+                    )}
+                    {!user?.email && (
+                      <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                        {emailLanguage === 'es' ? 'Inicia sesión para enviar el resumen a tu correo.' : 'Log in to send the summary to your email.'}
+                      </p>
+                    )}
                   </div>
 
                   {/* Reporte IA - full width, agrupado por área */}

@@ -47,6 +47,9 @@ class Settings:
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_API_KEY_EXPOSE: bool = os.getenv("GEMINI_API_KEY_EXPOSE", "false").lower() == "true"
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
+    # Email – envío vía Microsoft Graph (Mail.Send). Buzón desde el que se envía.
+    SMTP_FROM: str = os.getenv("SMTP_FROM", "administracion.compras@vimafoods.com")
     
     @property
     def group_ids_admin(self) -> List[str]:
