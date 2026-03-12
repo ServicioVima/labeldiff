@@ -311,6 +311,24 @@ export default function App() {
     );
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#F4F7F5] flex flex-col items-center justify-center p-6">
+        <div className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center shadow-xl bg-white border border-zinc-200 mb-6">
+          <img src="/vimafoods-logo.png" alt="Vimafoods" className="w-full h-full object-contain p-2" />
+        </div>
+        <h1 className="text-2xl font-black text-zinc-900 text-center mb-2">Vima Etiquetas</h1>
+        <p className="text-sm text-zinc-500 text-center mb-8 max-w-sm">Análisis de etiquetas con IA. Inicia sesión con tu cuenta Microsoft para continuar.</p>
+        <a
+          href={loginUrl}
+          className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg"
+        >
+          <LogIn className="w-5 h-5" /> Iniciar sesión con Microsoft
+        </a>
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-[#F4F7F5] flex flex-col font-sans text-zinc-900 selection:bg-emerald-100 selection:text-emerald-900">
