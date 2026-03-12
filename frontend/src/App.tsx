@@ -251,15 +251,17 @@ export default function App() {
     setComparisonPairs((prev) => prev.map((p) => (p.id === id ? { ...p, [side === 1 ? 'region1' : 'region2']: region } : p)));
     if (region) {
       const file = side === 1 ? file1 : file2;
-      if (file?.previewUrl) {
+      // Usar base64 (data URL); previewUrl puede ser blob: y cropBase64Image solo admite data URL/base64
+      const imageSource = file?.base64?.startsWith('data:') ? file.base64 : file?.previewUrl;
+      if (imageSource) {
         try {
-          const thumb = await cropBase64Image(file.previewUrl, region);
+          const thumb = await cropBase64Image(imageSource, region);
           setPairThumbnails((prev) => ({
             ...prev,
             [id]: { ...prev[id], [side === 1 ? 'thumb1' : 'thumb2']: thumb },
           }));
-        } catch {
-          // ignore
+        } catch (e) {
+          console.warn('No se pudo generar la miniatura del área:', e);
         }
       }
     }
