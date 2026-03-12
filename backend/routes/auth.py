@@ -158,22 +158,6 @@ async def callback(
     return response
 
 
-@router.get("/logout")
-async def logout(request: Request = None):
-    """Borra la cookie de sesión y redirige a la raíz. El usuario verá la pantalla de login."""
-    base = _base_url_from_request(request)
-    redirect_url = f"{base}/"
-    res = RedirectResponse(url=redirect_url, status_code=302)
-    res.delete_cookie(
-        key=settings.SESSION_COOKIE_NAME,
-        path="/",
-        httponly=settings.SESSION_HTTP_ONLY,
-        samesite=settings.SESSION_SAME_SITE,
-        secure=settings.SESSION_SECURE,
-    )
-    return res
-
-
 @router.get("/me")
 async def me(user: User | None = Depends(get_current_user_optional)):
     """Devuelve usuario actual si hay sesión (cookie o Bearer)."""

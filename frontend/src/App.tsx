@@ -2,13 +2,13 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Upload, Search, AlertCircle, CheckCircle2, Layers, ArrowRightLeft, Loader2, FileText, Sparkles, Zap, Download, History, Info, ChevronLeft, ChevronRight, Menu, X, Crosshair, Target, Trash2, LogIn, LogOut, User, Plus, Minus, Pencil, AlertTriangle, Mail, RefreshCw,
+  Upload, Search, AlertCircle, CheckCircle2, Layers, ArrowRightLeft, Loader2, FileText, Sparkles, Zap, Download, History, Info, ChevronLeft, ChevronRight, Menu, X, Crosshair, Target, Trash2, LogIn, User, Plus, Minus, Pencil, AlertTriangle, Mail,
 } from 'lucide-react';
 
 import { cn, fullImageBoxToCropBox } from './lib/utils';
 import type { FileData, LabelDefinition, ComparisonResult, CategorizedChangeType, ComparisonPair } from './types';
 import { setGeminiConfig, analyzeDifferences, cropBase64Image } from './lib/gemini';
-import { getConfig, sendReportEmail, getLogoutUrl } from './lib/api';
+import { getConfig, sendReportEmail } from './lib/api';
 import { buildEmailPayload } from './lib/emailReport';
 import { useAuth } from './contexts/AuthContext';
 import { LabelManager } from './components/LabelManager';
@@ -165,23 +165,6 @@ export default function App() {
     a.href = url;
     a.download = `diferencias_visuales_${Date.now()}.png`;
     a.click();
-  };
-
-  const handleNewAnalysis = () => {
-    setResult(null);
-    setError(null);
-    setFile1(null);
-    setFile2(null);
-    setComparisonPairs([]);
-    setPairThumbnails({});
-    setSelectedRegion(null);
-    setSelectedRegion2(null);
-    setIsFocusMode(false);
-    setIsFocusMode2(false);
-    setActivePairId(null);
-    setCurrentPage1(1);
-    setCurrentPage2(1);
-    setEmailMessage(null);
   };
 
   const { getRootProps: getLeftProps, getInputProps: getLeftInput, isDragActive: isLeftActive } = useDropzone({
@@ -375,22 +358,17 @@ export default function App() {
 
           {!isSidebarCollapsed && (
             <>
-              <div className="flex flex-col gap-2 px-2 py-2 rounded-xl bg-zinc-50 border border-zinc-100">
+              <div className="flex items-center gap-2 px-2 py-2 rounded-xl bg-zinc-50 border border-zinc-100">
                 {user ? (
-                  <>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                        <User className="w-4 h-4 text-emerald-600" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-zinc-900 truncate">{user.name}</p>
-                        <p className="text-[10px] text-zinc-500 truncate">{user.role}</p>
-                      </div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                      <User className="w-4 h-4 text-emerald-600" />
                     </div>
-                    <a href={logoutUrl} className="flex items-center gap-2 px-3 py-2 rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 text-xs font-bold transition-colors w-full" title="Cerrar sesión">
-                      <LogOut className="w-4 h-4" /> Cerrar sesión
-                    </a>
-                  </>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-zinc-900 truncate">{user.name}</p>
+                      <p className="text-[10px] text-zinc-500 truncate">{user.role}</p>
+                    </div>
+                  </div>
                 ) : (
                   <a href={loginUrl} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors">
                     <LogIn className="w-4 h-4" /> Iniciar sesión
@@ -676,16 +654,6 @@ export default function App() {
             {result && (
               <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} className="space-y-12">
                 <div className="h-px bg-zinc-200 w-full" />
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <button
-                    type="button"
-                    onClick={handleNewAnalysis}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 font-bold rounded-xl hover:bg-zinc-50 hover:border-zinc-300 transition-all shadow-sm"
-                    title="Borrar resultado y volver a subir archivos para un nuevo análisis"
-                  >
-                    <RefreshCw className="w-4 h-4" /> Nuevo análisis
-                  </button>
-                </div>
                 <div className="space-y-12">
                   {/* Análisis Visual Detallado: una sección por área cuando hay áreas; si no, vista completa */}
                   <div className="space-y-8">

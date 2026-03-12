@@ -63,10 +63,6 @@ export function getLoginUrl(): string {
   return `${API_BASE}/api/auth/login`;
 }
 
-export function getLogoutUrl(): string {
-  return `${API_BASE}/api/auth/logout`;
-}
-
 export async function getSasUrl(blobPath: string): Promise<string> {
   const res = await apiGet<{ url: string }>(`/api/catalog/sas?blob_path=${encodeURIComponent(blobPath)}`);
   return res.url;
