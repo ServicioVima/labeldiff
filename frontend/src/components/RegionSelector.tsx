@@ -163,29 +163,31 @@ export const RegionSelector: React.FC<Props> = ({
           </div>
 
           {totalPages != null && totalPages > 1 && onPageChange && (
-            <div className="flex items-center gap-1 bg-zinc-100 rounded-lg px-2 py-1 border border-zinc-200">
+            <div className="flex items-center gap-1 bg-zinc-100 rounded-2xl px-3 py-2 border border-zinc-200 shadow-sm" role="group" aria-label="Cambiar página">
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onPageChange(Math.max(1, currentPage - 1)); }}
                 disabled={currentPage === 1 || isLoading}
-                className="p-1 text-zinc-500 hover:text-zinc-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-2 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors touch-manipulation"
+                aria-label="Página anterior"
               >
-                <ChevronLeft className="w-3 h-3" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
-              <div className="flex items-center gap-2 min-w-[40px] justify-center">
+              <span className="text-sm font-bold text-zinc-700 min-w-[3rem] text-center select-none tabular-nums">
                 {isLoading ? (
-                  <Loader2 className="w-3 h-3 text-emerald-500 animate-spin" />
+                  <Loader2 className="w-5 h-5 text-emerald-500 animate-spin inline" />
                 ) : (
-                  <span className="text-[10px] font-black text-zinc-900">{currentPage} / {totalPages}</span>
+                  `${currentPage} / ${totalPages}`
                 )}
-              </div>
+              </span>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onPageChange(Math.min(totalPages, currentPage + 1)); }}
                 disabled={currentPage === totalPages || isLoading}
-                className="p-1 text-zinc-500 hover:text-zinc-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-2 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors touch-manipulation"
+                aria-label="Página siguiente"
               >
-                <ChevronRight className="w-3 h-3" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           )}

@@ -197,15 +197,15 @@ export const FilePreview: React.FC<Props> = ({
         <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{label}</span>
         <div className="flex items-center gap-2">
           {file.totalPages != null && file.totalPages > 1 && onPageChange && (
-            <div className="flex items-center gap-0.5 bg-zinc-100 rounded-lg px-1.5 py-0.5 border border-zinc-200">
-              <button type="button" onClick={(e) => { e.stopPropagation(); onPageChange(Math.max(1, currentPage - 1)); }} disabled={currentPage === 1 || isLoading} className="p-0.5 text-zinc-500 hover:text-zinc-900 disabled:opacity-30 transition-colors">
-                <ChevronLeft className="w-3 h-3" />
+            <div className="flex items-center gap-1 bg-zinc-100 rounded-2xl px-3 py-2 border border-zinc-200 shadow-sm" role="group" aria-label="Cambiar página">
+              <button type="button" onClick={(e) => { e.stopPropagation(); onPageChange(Math.max(1, currentPage - 1)); }} disabled={currentPage === 1 || isLoading} className="p-2 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-white disabled:opacity-30 transition-colors touch-manipulation" aria-label="Página anterior">
+                <ChevronLeft className="w-5 h-5" />
               </button>
-              <span className="text-[10px] font-bold text-zinc-600 min-w-[32px] text-center">
-                {isLoading ? <Loader2 className="w-3 h-3 animate-spin inline text-emerald-600" /> : `${currentPage}/${file.totalPages}`}
+              <span className="text-sm font-bold text-zinc-700 min-w-[3rem] text-center select-none tabular-nums">
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin inline text-emerald-600" /> : `${currentPage} / ${file.totalPages}`}
               </span>
-              <button type="button" onClick={(e) => { e.stopPropagation(); onPageChange(Math.min(file.totalPages!, currentPage + 1)); }} disabled={currentPage === file.totalPages || isLoading} className="p-0.5 text-zinc-500 hover:text-zinc-900 disabled:opacity-30 transition-colors">
-                <ChevronRight className="w-3 h-3" />
+              <button type="button" onClick={(e) => { e.stopPropagation(); onPageChange(Math.min(file.totalPages!, currentPage + 1)); }} disabled={currentPage === file.totalPages || isLoading} className="p-2 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-white disabled:opacity-30 transition-colors touch-manipulation" aria-label="Página siguiente">
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           )}
