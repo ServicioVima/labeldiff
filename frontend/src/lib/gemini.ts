@@ -60,6 +60,9 @@ function parseResponseJson(raw: string): ComparisonResult {
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("Unterminated") || msg.includes("position") || msg.includes("truncat")) {
+      throw new Error("La respuesta de la IA fue demasiado larga y se cortó. Prueba con menos áreas o vuelve a ejecutar el análisis.");
+    }
     throw new Error(`Respuesta de la IA no es JSON válido: ${msg}`);
   }
 }
@@ -92,30 +95,37 @@ export async function analyzeDifferences(
 
   if (usePairs) {
     parts.push({
-      text: `ESTÁS COMPARANDO ${validPairs.length} ÁREAS ESPECÍFICAS. Para cada par, la primera imagen es REFERENCIA (v1) y la segunda es NUEVA VERSIÓN (v2).
-En "categorizedChanges" incluye "areaName" con el nombre del área cuando aplique.
-En "visualDifferences" puedes incluir "areaName" para asociar cada caja a un área.
-Coordenadas box_2d en escala 0-1000 referidas a la imagen v2 completa.`,
+      text: `ESTÁS COMPARANDO ${validPairs.length} ÁREAS. Cada par: primera imagen = REF (v1), segunda = NUEVA (v2).
+Incluye "areaName" en categorizedChanges y visualDifferences. box_2d en escala 0-1000 (imagen v2 completa).
+Responde CONCISO: evita texto muy largo para no truncar el JSON.`,
     });
-    for (let i = 0; i < validPairs.length; i++) {
-      const pair = validPairs[i];
-      let crop1: { base64: string; mimeType: string };
-      let crop2: { base64: string; mimeType: string };
-      try {
-        crop1 = await cropFileToRegion(file1.base64, file1.mimeType, pair.region1!);
-        crop2 = await cropFileToRegion(file2.base64, file2.mimeType, pair.region2!);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        throw new Error(`Error al recortar el área "${pair.name}": ${msg}`);
-      }
+    const cropsPerPair = await Promise.all(
+      validPairs.map(async (pair) => {
+        try {
+          const [crop1, crop2] = await Promise.all([
+            cropFileToRegion(file1.base64, file1.mimeType, pair.region1!),
+            cropFileToRegion(file2.base64, file2.mimeType, pair.region2!),
+          ]);
+          return { pair, crop1, crop2 };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          throw new Error(`Error al recortar el área "${pair.name}": ${msg}`);
+        }
+      })
+    );
+    cropsPerPair.forEach(({ pair, crop1, crop2 }, i) => {
       parts.push({
         text: `--- ÁREA ${i + 1}: ${pair.name} ---${pair.prompt ? `\nInstrucciones: ${pair.prompt}` : ""}`,
       });
       parts.push(toInline(crop1.base64, crop1.mimeType));
       parts.push(toInline(crop2.base64, crop2.mimeType));
-    }
+    });
     parts.push({
-      text: `Genera el reporte: textualDifferences (Markdown), categorizedChanges (con type, label, field opcional, description opcional, areaName opcional), visualDifferences (box_2d, label, areaName opcional).`,
+      text: `Genera el reporte en JSON. IMPORTANTE: Sé CONCISO para no truncar la respuesta.
+- textualDifferences: Markdown breve, máximo 2-3 párrafos por área, solo diferencias relevantes.
+- categorizedChanges: lista solo cambios (type, label, field, description, areaName). Máximo ~15 ítems.
+- visualDifferences: solo cajas con diferencias (box_2d, label, areaName). Máximo ~20 ítems.
+Evita texto repetitivo o explicaciones largas.`,
     });
   } else {
     let f1 = { base64: file1.base64, mimeType: file1.mimeType };
