@@ -1,6 +1,6 @@
-import React, { useRef, useEffect, useState, useLayoutEffect } from 'react';
+import React, { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import type { FileData } from '../types';
-import { FileText, Image as ImageIcon } from 'lucide-react';
+import { FileText, Image as ImageIcon, Download } from 'lucide-react';
 
 interface Props {
   file: FileData | null;
@@ -18,6 +18,46 @@ export const FilePreview: React.FC<Props> = ({ file, label, differences, selecte
 
   const hasZoom = Boolean(selectedRegion && !differences);
   const showCanvas = Boolean(differences);
+  const showDownloadButton = Boolean(differences || selectedRegion);
+
+  const handleDownload = useCallback(() => {
+    if (!file?.previewUrl) return;
+    if (canvasRef.current && canvasRef.current.width > 0) {
+      const url = canvasRef.current.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `preview_${label.replace(/\s+/g, '_')}_${Date.now()}.png`;
+      a.click();
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0);
+      if (selectedRegion) {
+        const [ymin, xmin, ymax, xmax] = selectedRegion;
+        const left = (xmin / 1000) * img.naturalWidth;
+        const top = (ymin / 1000) * img.naturalHeight;
+        const width = ((xmax - xmin) / 1000) * img.naturalWidth;
+        const height = ((ymax - ymin) / 1000) * img.naturalHeight;
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.9)';
+        ctx.lineWidth = Math.max(4, img.naturalWidth / 100);
+        ctx.setLineDash([10, 5]);
+        ctx.strokeRect(left, top, width, height);
+      }
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `preview_${label.replace(/\s+/g, '_')}_${Date.now()}.png`;
+      a.click();
+    };
+    img.src = file.previewUrl;
+  }, [file, label, selectedRegion, differences]);
 
   useLayoutEffect(() => {
     if (!hasZoom || !containerRef.current) return;
@@ -128,7 +168,7 @@ export const FilePreview: React.FC<Props> = ({ file, label, differences, selecte
 
   if (!file) {
     return (
-      <div className="aspect-square rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 flex flex-col items-center justify-center p-6 text-center">
+      <div className="aspect-[4/5] rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 flex flex-col items-center justify-center p-6 text-center">
         <div className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center mb-4">
           <ImageIcon className="w-6 h-6 text-zinc-400" />
         </div>
@@ -142,11 +182,18 @@ export const FilePreview: React.FC<Props> = ({ file, label, differences, selecte
     <div className="space-y-2">
       <div className="flex items-center justify-between px-1">
         <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{label}</span>
-        <span className="text-xs text-zinc-400 truncate max-w-[150px]">{file.name}</span>
+        <div className="flex items-center gap-2">
+          {showDownloadButton && (
+            <button type="button" onClick={handleDownload} className="p-2 rounded-xl bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:text-emerald-600 transition-all shadow-sm" title="Descargar imagen">
+              <Download className="w-4 h-4" />
+            </button>
+          )}
+          <span className="text-xs text-zinc-400 truncate max-w-[150px]">{file.name}</span>
+        </div>
       </div>
       <div
         ref={containerRef}
-        className="relative aspect-square rounded-2xl border border-zinc-200 bg-white overflow-hidden flex items-center justify-center group"
+        className="relative aspect-[4/5] rounded-2xl border border-zinc-200 bg-white overflow-hidden flex items-center justify-center group"
       >
         {canPreview ? (
           hasZoom ? (
@@ -156,6 +203,7 @@ export const FilePreview: React.FC<Props> = ({ file, label, differences, selecte
                 alt={file.name}
                 decoding="async"
                 fetchPriority="high"
+                referrerPolicy="no-referrer"
                 style={{
                   position: 'absolute',
                   left: 0,
@@ -176,6 +224,7 @@ export const FilePreview: React.FC<Props> = ({ file, label, differences, selecte
               className="max-w-full max-h-full object-contain w-full h-full"
               decoding="async"
               fetchPriority="high"
+              referrerPolicy="no-referrer"
               style={{ imageRendering: 'auto' }}
             />
           )

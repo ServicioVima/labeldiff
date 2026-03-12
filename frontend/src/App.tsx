@@ -4,9 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Upload, Search, AlertCircle, CheckCircle2, Layers, ArrowRightLeft, Loader2, FileText, Sparkles, Zap, Download, History, Info, ChevronLeft, ChevronRight, Menu, X, Crosshair, Target, Trash2, LogIn, User, Plus, Minus, Pencil, AlertTriangle,
 } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 
+import { cn } from './lib/utils';
 import type { FileData, LabelDefinition, ComparisonResult, CategorizedChangeType } from './types';
 import { setGeminiConfig, analyzeDifferences } from './lib/gemini';
 import { getConfig } from './lib/api';
@@ -16,10 +15,6 @@ import { FilePreview } from './components/FilePreview';
 import { ComparisonSlider } from './components/ComparisonSlider';
 import { RegionSelector } from './components/RegionSelector';
 import ReactMarkdown from 'react-markdown';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 export default function App() {
   const { user, loading: authLoading, loginUrl } = useAuth();
@@ -256,7 +251,7 @@ export default function App() {
       </motion.aside>
 
       <main className="flex-1 p-8 lg:p-12 overflow-y-auto">
-        <div className="max-w-7xl mx-auto space-y-12">
+        <div className="max-w-[1600px] mx-auto space-y-12">
           <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">
@@ -306,13 +301,13 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            <motion.div layout className="space-y-4">
-              <div {...getLeftProps()} className={cn("relative group cursor-pointer transition-all duration-500", !file1 || isFocusMode ? "h-[400px]" : "h-auto")}>
+          <div className={cn("grid gap-10 transition-all duration-500", (isFocusMode || isFocusMode2) ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
+            <motion.div layout className={cn("space-y-4 transition-all duration-500", isFocusMode2 && !isFocusMode ? "opacity-40 pointer-events-none" : "")}>
+              <div {...getLeftProps()} className={cn("relative group cursor-pointer transition-all duration-500", !file1 || isFocusMode ? "min-h-[600px] h-[85vh]" : "h-auto")}>
                 <input {...getLeftInput()} />
                 {isFocusMode && file1 ? (
-                  <div className="h-full" onClick={(e) => e.stopPropagation()}>
-                    <RegionSelector imageUrl={file1.previewUrl} onRegionSelected={setSelectedRegion} initialRegion={selectedRegion} />
+                  <div className="h-full min-h-[600px]" onClick={(e) => e.stopPropagation()}>
+                    <RegionSelector imageUrl={file1.previewUrl} onRegionSelected={setSelectedRegion} onConfirmSelection={() => setIsFocusMode(false)} initialRegion={selectedRegion} />
                   </div>
                 ) : (
                   <>
@@ -340,12 +335,12 @@ export default function App() {
                 )}
               </div>
             </motion.div>
-            <motion.div layout className="space-y-4">
-              <div {...getRightProps()} className={cn("relative group cursor-pointer transition-all duration-500", !file2 || isFocusMode2 ? "h-[400px]" : "h-auto")}>
+            <motion.div layout className={cn("space-y-4 transition-all duration-500", isFocusMode && !isFocusMode2 ? "opacity-40 pointer-events-none" : "")}>
+              <div {...getRightProps()} className={cn("relative group cursor-pointer transition-all duration-500", !file2 || isFocusMode2 ? "min-h-[600px] h-[85vh]" : "h-auto")}>
                 <input {...getRightInput()} />
                 {isFocusMode2 && file2 ? (
-                  <div className="h-full" onClick={(e) => e.stopPropagation()}>
-                    <RegionSelector imageUrl={file2.previewUrl} onRegionSelected={setSelectedRegion2} initialRegion={selectedRegion2} />
+                  <div className="h-full min-h-[600px]" onClick={(e) => e.stopPropagation()}>
+                    <RegionSelector imageUrl={file2.previewUrl} onRegionSelected={setSelectedRegion2} onConfirmSelection={() => setIsFocusMode2(false)} initialRegion={selectedRegion2} />
                   </div>
                 ) : (
                   <>
@@ -396,29 +391,27 @@ export default function App() {
                 <div className="h-px bg-zinc-200 w-full" />
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
                   <div className="lg:col-span-6 space-y-8">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <h3 className="text-2xl font-black text-zinc-900">Comparación Visual</h3>
-                        <p className="text-sm text-zinc-500">Desliza para ver las diferencias entre versiones.</p>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-4 bg-emerald-500 rounded-full" />
+                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Modo Cortina (Antes/Después)</span>
                       </div>
-                      <button onClick={downloadImage} className="px-4 py-2 rounded-xl bg-white border border-zinc-200 text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-colors flex items-center gap-2 shadow-sm">
-                        <Download className="w-3.5 h-3.5" /> Imagen Marcada
-                      </button>
+                      <ComparisonSlider leftImage={file1?.previewUrl ?? ''} rightImage={file2?.previewUrl ?? ''} />
                     </div>
-                    <div className="grid grid-cols-1 gap-10">
-                      <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Modo Cortina (Antes/Después)</span>
+                          <div className="w-1 h-4 bg-zinc-400 rounded-full" />
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Versión de Referencia</span>
                         </div>
-                        <ComparisonSlider leftImage={file1?.previewUrl ?? ''} rightImage={file2?.previewUrl ?? ''} />
+                        <FilePreview file={file1} label="Versión de Referencia" selectedRegion={selectedRegion} />
                       </div>
-                      <div className="space-y-4">
+                      <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Mapa de Calor de Diferencias</span>
+                          <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Nueva Versión (con diferencias)</span>
                         </div>
-                        <FilePreview file={file2} label="Diferencias marcadas en versión para fábrica" differences={result.visualDifferences} />
+                        <FilePreview file={file2} label="Versión para fábrica" differences={result.visualDifferences} selectedRegion={selectedRegion2} />
                       </div>
                     </div>
                   </div>
