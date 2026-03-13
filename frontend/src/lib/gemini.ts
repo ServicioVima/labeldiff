@@ -36,6 +36,49 @@ function normalizeInlineData(base64: string, declaredMime: string): { data: stri
   return { data: raw, mimeType };
 }
 
+const MAX_IMAGE_PX = 1200;
+const MAX_RETRIES_EMPTY = 2;
+
+/** Redimensiona una imagen (base64/data URL) para que el lado mayor no supere maxPx. Solo para image/*; si no, devuelve igual. */
+function resizeImageForApi(
+  base64: string,
+  mimeType: string,
+  maxPx: number = MAX_IMAGE_PX
+): Promise<{ base64: string; mimeType: string }> {
+  if (!mimeType.startsWith("image/")) return Promise.resolve({ base64, mimeType });
+  const dataUrl = base64.includes(",") ? base64 : `data:${mimeType};base64,${base64}`;
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (w <= maxPx && h <= maxPx) {
+        resolve({ base64: dataUrl, mimeType });
+        return;
+      }
+      const scale = maxPx / Math.max(w, h);
+      const cw = Math.round(w * scale);
+      const ch = Math.round(h * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve({ base64: dataUrl, mimeType });
+        return;
+      }
+      ctx.imageSmoothingEnabled = true;
+      (ctx as CanvasRenderingContext2D).imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, cw, ch);
+      const out = canvas.toDataURL("image/jpeg", 0.88);
+      resolve({ base64: out, mimeType: "image/jpeg" });
+    };
+    img.onerror = () => resolve({ base64: dataUrl, mimeType });
+    img.src = dataUrl;
+  });
+}
+
 /** Obtiene el texto de la respuesta del SDK (distintas versiones pueden exponer .text o candidates[].content.parts[].text). */
 function getResponseText(response: any): string {
   if (response?.text && typeof response.text === "string") return response.text;
@@ -137,6 +180,12 @@ Evita texto repetitivo o explicaciones largas.`,
       const msg = e instanceof Error ? e.message : String(e);
       throw new Error(`Error al recortar el área de enfoque: ${msg}`);
     }
+    const [r1, r2] = await Promise.all([
+      resizeImageForApi(f1.base64, f1.mimeType),
+      resizeImageForApi(f2.base64, f2.mimeType),
+    ]);
+    f1 = r1;
+    f2 = r2;
 
     let regionInstruction = "";
     if (region1 && region2) {
@@ -154,69 +203,80 @@ Evita texto repetitivo o explicaciones largas.`,
       {
         text: `Compara estos dos archivos. PRIMER archivo = REFERENCIA (v1). SEGUNDO = NUEVA VERSIÓN PARA FÁBRICA (v2).
 Identifica diferencias: texto, fechas, ingredientes, alérgenos, códigos, color, posición.${regionInstruction}
-textualDifferences: Markdown con ### y listas. visualDifferences: box_2d [ymin,xmin,ymax,xmax] 0-1000 solo en v2, y label. categorizedChanges: type (added|removed|modified|absent) y label.`,
+Genera el reporte en JSON. IMPORTANTE: Sé CONCISO para no truncar la respuesta.
+- textualDifferences: Markdown breve, máximo 2-3 párrafos, solo diferencias relevantes.
+- categorizedChanges: lista solo cambios (type, label, field, description, areaName). Máximo ~15 ítems.
+- visualDifferences: solo cajas con diferencias (box_2d [ymin,xmin,ymax,xmax] 0-1000 en v2, label, areaName). Máximo ~20 ítems.
+Evita texto repetitivo o explicaciones largas.`,
       }
     );
   }
 
-  let response: any;
-  try {
-    response = await ai.models.generateContent({
-      model,
-      contents: [{ parts }],
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            textualDifferences: { type: Type.STRING },
-            visualDifferences: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } },
-                  label: { type: Type.STRING },
-                  areaName: { type: Type.STRING },
+  const maxAttempts = 1 + MAX_RETRIES_EMPTY;
+  let rawText = "";
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let response: any;
+    try {
+      response = await ai.models.generateContent({
+        model,
+        contents: [{ parts }],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              textualDifferences: { type: Type.STRING },
+              visualDifferences: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+                    label: { type: Type.STRING },
+                    areaName: { type: Type.STRING },
+                  },
+                  required: ["box_2d", "label"],
                 },
-                required: ["box_2d", "label"],
+              },
+              categorizedChanges: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    type: { type: Type.STRING, enum: ["added", "removed", "modified", "absent"] },
+                    label: { type: Type.STRING },
+                    field: { type: Type.STRING },
+                    oldValue: { type: Type.STRING },
+                    newValue: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    areaName: { type: Type.STRING },
+                  },
+                  required: ["type", "label"],
+                },
               },
             },
-            categorizedChanges: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  type: { type: Type.STRING, enum: ["added", "removed", "modified", "absent"] },
-                  label: { type: Type.STRING },
-                  field: { type: Type.STRING },
-                  oldValue: { type: Type.STRING },
-                  newValue: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  areaName: { type: Type.STRING },
-                },
-                required: ["type", "label"],
-              },
-            },
+            required: ["textualDifferences", "visualDifferences", "categorizedChanges"],
           },
-          required: ["textualDifferences", "visualDifferences", "categorizedChanges"],
         },
-      },
-    });
-  } catch (e: any) {
-    const msg = e?.message ?? String(e);
-    if (msg.includes("API key") || msg.includes("401") || msg.includes("403")) {
-      throw new Error("Clave de API de Gemini inválida o sin permiso. Revise GEMINI_API_KEY.");
+      });
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      if (msg.includes("API key") || msg.includes("401") || msg.includes("403")) {
+        throw new Error("Clave de API de Gemini inválida o sin permiso. Revise GEMINI_API_KEY.");
+      }
+      if (msg.includes("429") || msg.includes("quota") || msg.includes("rate")) {
+        throw new Error("Límite de uso de la API alcanzado. Espere unos minutos e intente de nuevo.");
+      }
+      if (msg.includes("blocked") || msg.includes("Safety")) {
+        throw new Error("La API bloqueó la respuesta por política de contenido. Pruebe con otras imágenes.");
+      }
+      throw new Error(`Error de la API Gemini: ${msg}`);
     }
-    if (msg.includes("429") || msg.includes("quota") || msg.includes("rate")) {
-      throw new Error("Límite de uso de la API alcanzado. Espere unos minutos e intente de nuevo.");
-    }
-    if (msg.includes("blocked") || msg.includes("Safety")) {
-      throw new Error("La API bloqueó la respuesta por política de contenido. Pruebe con otras imágenes.");
-    }
-    throw new Error(`Error de la API Gemini: ${msg}`);
+    rawText = getResponseText(response);
+    if (rawText !== "") return parseResponseJson(rawText);
+    if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, 1500));
   }
-
-  const rawText = getResponseText(response);
-  return parseResponseJson(rawText);
+  throw new Error(
+    "Con imágenes muy grandes a veces falla. Prueba de nuevo o define áreas concretas para más estabilidad. (Error: La API no devolvió contenido)"
+  );
 }
