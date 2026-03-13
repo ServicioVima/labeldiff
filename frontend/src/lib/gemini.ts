@@ -36,7 +36,7 @@ function normalizeInlineData(base64: string, declaredMime: string): { data: stri
   return { data: raw, mimeType };
 }
 
-const MAX_IMAGE_PX = 1200;
+const MAX_IMAGE_PX = 800;
 const MAX_RETRIES_EMPTY = 2;
 
 /** Redimensiona una imagen (base64/data URL) para que el lado mayor no supere maxPx. Solo para image/*; si no, devuelve igual. */
@@ -71,7 +71,7 @@ function resizeImageForApi(
       ctx.imageSmoothingEnabled = true;
       (ctx as CanvasRenderingContext2D).imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, cw, ch);
-      const out = canvas.toDataURL("image/jpeg", 0.88);
+      const out = canvas.toDataURL("image/jpeg", 0.78);
       resolve({ base64: out, mimeType: "image/jpeg" });
     };
     img.onerror = () => resolve({ base64: dataUrl, mimeType });
