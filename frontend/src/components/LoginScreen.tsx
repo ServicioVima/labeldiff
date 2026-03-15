@@ -12,7 +12,9 @@ export const LOGIN_CONFIG = {
   mascotSrc: "/vima1.gif",
   logoSrc: "/vimafoods-logo.png",
   title: "¡Bienvenido a Vima Etiquetas!",
-  subtitle: "Tu asistente de Vima Foods. Te doy la bienvenida al análisis de etiquetas con IA.",
+  /** Línea que presenta a la mascota por nombre. */
+  mascotTagline: "Vimo, tu asistente",
+  subtitle: "Soy Vimo, tu asistente de Vima Foods. Te doy la bienvenida al análisis de etiquetas con IA.",
   brandName: "Vima Etiquetas",
   ctaHint: "Inicia sesión con tu cuenta Microsoft para continuar.",
   ctaLabel: "Iniciar sesión con Microsoft",
@@ -23,7 +25,7 @@ export const LOGIN_CONFIG = {
 type LoginScreenProps = { loginUrl: string };
 
 export function LoginScreen({ loginUrl }: LoginScreenProps) {
-  const { gifWidth, containerSize, mascotSrc, logoSrc, title, subtitle, brandName, ctaHint, ctaLabel, mascotAlt, logoAlt } = LOGIN_CONFIG;
+  const { gifWidth, containerSize, mascotSrc, logoSrc, title, mascotTagline, subtitle, brandName, ctaHint, ctaLabel, mascotAlt, logoAlt } = LOGIN_CONFIG;
 
   return (
     <div
@@ -70,11 +72,14 @@ export function LoginScreen({ loginUrl }: LoginScreenProps) {
         className="relative z-10 w-full max-w-[420px] rounded-3xl bg-white/95 backdrop-blur-md border border-white/80 shadow-xl shadow-black/5 flex flex-col items-center text-center px-8 py-10 sm:px-10 sm:py-12"
         style={{ boxShadow: "0 25px 50px -12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.02)" }}
       >
-        {/* Encabezado */}
+        {/* Encabezado: título, presentación de Vimo y subtítulo */}
         <header className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-2" style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
+          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight mb-1.5" style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
             {title}
           </h1>
+          <p className="text-sm font-semibold text-emerald-600 mb-2" aria-label="Mascota Vimo">
+            {mascotTagline}
+          </p>
           <p className="text-sm sm:text-base text-zinc-600 leading-relaxed max-w-[320px] mx-auto">
             {subtitle}
           </p>
