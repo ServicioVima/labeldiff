@@ -18,6 +18,7 @@ import { CroppedComparisonSlider } from './components/CroppedComparisonSlider';
 import { AreaMarkedPreview } from './components/AreaMarkedPreview';
 import { RegionSelector } from './components/RegionSelector';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { LoginScreen } from './components/LoginScreen';
 import ReactMarkdown from 'react-markdown';
 
 export default function App() {
@@ -312,34 +313,7 @@ export default function App() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-emerald-50/80 via-[#F4F7F5] to-emerald-50/60 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(16,185,129,0.12),transparent)] pointer-events-none" />
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="relative z-10 w-full max-w-md flex flex-col items-center"
-        >
-          <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden flex items-center justify-center bg-white/90 backdrop-blur border-2 border-emerald-200/80 shadow-xl shadow-emerald-500/10 mb-4 ring-2 ring-white/80">
-            <img src="/vima1.gif" alt="Vimo, mascota de Vima Foods" className="w-full h-full object-contain object-center" />
-          </div>
-          <p className="text-emerald-700 text-sm font-semibold mb-1">¡Hola! Soy <span className="font-black text-emerald-800">Vimo</span></p>
-          <p className="text-zinc-600 text-xs text-center mb-6 max-w-[280px]">Tu asistente de Vima Foods. Te doy la bienvenida al análisis de etiquetas con IA.</p>
-          <div className="w-full max-w-[200px] rounded-2xl overflow-hidden flex items-center justify-center bg-white border-2 border-emerald-200/80 shadow-lg shadow-emerald-500/10 p-3 mb-6">
-            <img src="/vimafoods-logo.png" alt="Vima Foods" className="w-full h-auto object-contain max-h-12" />
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 text-center mb-1 tracking-tight">Vima Etiquetas</h1>
-          <p className="text-xs text-zinc-500 text-center mb-8 max-w-sm">Inicia sesión con tu cuenta Microsoft para continuar.</p>
-          <a
-            href={loginUrl}
-            className="inline-flex items-center gap-2 px-8 py-3.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/30"
-          >
-            <LogIn className="w-5 h-5" /> Iniciar sesión con Microsoft
-          </a>
-        </motion.div>
-      </div>
-    );
+    return <LoginScreen loginUrl={loginUrl} />;
   }
 
   return (
