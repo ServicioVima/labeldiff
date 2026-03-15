@@ -1,14 +1,16 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { LogIn } from "lucide-react";
 
 /** Constantes del login: tamaños (px), textos y rutas. Ajustar aquí para cambiar la pantalla. */
 export const LOGIN_CONFIG = {
-  /** Ancho del GIF por breakpoint (altura automática para mantener proporción). */
+  /** Ancho del protagonista (video/GIF) por breakpoint (altura automática). */
   gifWidth: { mobile: 180, tablet: 220, desktop: 260 },
-  /** Tamaño del contenedor del GIF (cuadrado aproximado). */
+  /** Tamaño del contenedor (cuadrado aproximado). */
   containerSize: { mobile: 240, tablet: 280, desktop: 340 },
-  /** GIF local (ruta pública). */
+  /** Video de bienvenida (Vimo). Se reproduce en loop, muteado; respetamos prefers-reduced-motion. */
+  videoSrc: "/VIMOVIDEO.mp4",
+  /** GIF local: fallback cuando el usuario prefiere menos movimiento o como poster del video. */
   mascotSrc: "/vima1.gif",
   logoSrc: "/vimafoods-logo.png",
   title: "¡Bienvenido a Vima Etiquetas!",
@@ -25,7 +27,16 @@ export const LOGIN_CONFIG = {
 type LoginScreenProps = { loginUrl: string };
 
 export function LoginScreen({ loginUrl }: LoginScreenProps) {
-  const { gifWidth, containerSize, mascotSrc, logoSrc, title, mascotTagline, subtitle, brandName, ctaHint, ctaLabel, mascotAlt, logoAlt } = LOGIN_CONFIG;
+  const { gifWidth, containerSize, videoSrc, mascotSrc, logoSrc, title, mascotTagline, subtitle, brandName, ctaHint, ctaLabel, mascotAlt, logoAlt } = LOGIN_CONFIG;
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mq.matches);
+    const handler = () => setPrefersReducedMotion(mq.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   return (
     <div
@@ -85,27 +96,42 @@ export function LoginScreen({ loginUrl }: LoginScreenProps) {
           </p>
         </header>
 
-        {/* Contenedor de la mascota: glow, bordes, sombra — responsive según LOGIN_CONFIG */}
+        {/* Contenedor del protagonista (video Vimo o GIF): glow, bordes, sombra — UX: video autoplay muteado; fallback GIF si prefers-reduced-motion */}
         <motion.div
           data-login-mascot-box
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1, duration: 0.4 }}
-          className="flex items-center justify-center rounded-2xl mb-8 w-[240px] h-[240px] sm:w-[280px] sm:h-[280px] lg:w-[340px] lg:h-[340px] transition-shadow duration-300 hover:shadow-emerald-500/15"
+          className="flex items-center justify-center rounded-2xl mb-8 w-[240px] h-[240px] sm:w-[280px] sm:h-[280px] lg:w-[340px] lg:h-[340px] overflow-hidden transition-shadow duration-300 hover:shadow-emerald-500/15"
           style={{
             boxShadow: "0 0 0 1px rgba(16, 185, 129, 0.12), 0 8px 30px -10px rgba(16, 185, 129, 0.2), 0 4px 20px -8px rgba(0,0,0,0.08)",
             background: "linear-gradient(145deg, rgba(255,255,255,0.9) 0%, rgba(236, 253, 245, 0.5) 100%)",
           }}
         >
-          <img
-            src={mascotSrc}
-            alt={mascotAlt}
-            width={gifWidth.desktop}
-            height={gifWidth.desktop}
-            className="object-contain object-center w-[180px] h-auto sm:w-[220px] lg:w-[260px]"
-            loading="eager"
-            decoding="async"
-          />
+          {prefersReducedMotion ? (
+            <img
+              src={mascotSrc}
+              alt={mascotAlt}
+              width={gifWidth.desktop}
+              height={gifWidth.desktop}
+              className="object-contain object-center w-[180px] h-auto sm:w-[220px] lg:w-[260px]"
+              loading="eager"
+              decoding="async"
+            />
+          ) : (
+            <video
+              src={videoSrc}
+              poster={mascotSrc}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              className="object-contain object-center w-[180px] h-auto sm:w-[220px] lg:w-[260px]"
+              aria-label={mascotAlt}
+              title={mascotAlt}
+            />
+          )}
         </motion.div>
 
         {/* Branding */}
